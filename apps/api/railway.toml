@@ -1,5 +1,5 @@
 [build]
-buildCommand = "npm install && npm run build"
+dockerfilePath = "Dockerfile.api"
 
 [deploy]
 startCommand = "npm run start"
