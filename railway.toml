@@ -1,0 +1,5 @@
+[build]
+buildCommand = "npm install && npm run build --workspace=@ai-agency/portal"
+
+[deploy]
+startCommand = "npm run start --workspace=@ai-agency/portal"
