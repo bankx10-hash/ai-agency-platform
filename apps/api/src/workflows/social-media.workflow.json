@@ -1,0 +1,134 @@
+{
+  "name": "Social Media Agent",
+  "active": false,
+  "nodes": [
+    {
+      "id": "schedule-trigger",
+      "name": "Post Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 8 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "claude-generate-content",
+      "name": "Claude - Generate Post Content",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [500, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{$env.ANTHROPIC_API_KEY}}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":2048,\"system\":\"{{AGENT_PROMPT}}\",\"messages\":[{\"role\":\"user\",\"content\":\"Create today's social media posts for all platforms. Return JSON with platform-specific content.\"}]}"
+      }
+    },
+    {
+      "id": "parse-content",
+      "name": "Parse Content",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [750, 300],
+      "parameters": {
+        "jsCode": "const content = JSON.parse($input.first().json.content[0].text);\nreturn Object.entries(content).map(([platform, post]) => ({ json: { platform, content: post, scheduledTime: new Date(Date.now() + 3600000).toISOString() } }));"
+      }
+    },
+    {
+      "id": "schedule-buffer",
+      "name": "Schedule via Buffer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.bufferapp.com/1/updates/create.json",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{CLIENT_ID}}" }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "text", "value": "={{$json.content}}" },
+            { "name": "scheduled_at", "value": "={{$json.scheduledTime}}" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "log-to-ghl",
+      "name": "Log Post to GHL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1250, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.GHL_BASE_URL}}/conversations/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{$env.GHL_API_KEY}}" },
+            { "name": "Version", "value": "2021-07-28" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"locationId\":\"{{LOCATION_ID}}\",\"type\":\"Note\",\"body\":\"Social post scheduled for \" + $json.platform + \": \" + $json.content}"
+      }
+    },
+    {
+      "id": "content-brief-webhook",
+      "name": "Content Brief Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 500],
+      "parameters": {
+        "path": "social-brief-{{CLIENT_ID}}",
+        "responseMode": "onReceived"
+      },
+      "webhookId": "social-brief-{{CLIENT_ID}}"
+    }
+  ],
+  "connections": {
+    "Post Schedule": {
+      "main": [[{ "node": "Claude - Generate Post Content", "type": "main", "index": 0 }]]
+    },
+    "Claude - Generate Post Content": {
+      "main": [[{ "node": "Parse Content", "type": "main", "index": 0 }]]
+    },
+    "Parse Content": {
+      "main": [[{ "node": "Schedule via Buffer", "type": "main", "index": 0 }]]
+    },
+    "Schedule via Buffer": {
+      "main": [[{ "node": "Log Post to GHL", "type": "main", "index": 0 }]]
+    },
+    "Content Brief Webhook": {
+      "main": [[{ "node": "Claude - Generate Post Content", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}

@@ -1,0 +1,199 @@
+{
+  "name": "Lead Generation Agent",
+  "active": false,
+  "nodes": [
+    {
+      "id": "trigger-node",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 2
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "webhook-trigger",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 150],
+      "parameters": {
+        "path": "lead-gen-{{CLIENT_ID}}",
+        "responseMode": "onReceived",
+        "responseData": "allEntries"
+      },
+      "webhookId": "lead-gen-{{CLIENT_ID}}"
+    },
+    {
+      "id": "fetch-leads",
+      "name": "Fetch Leads from GHL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [500, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.GHL_BASE_URL}}/contacts",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{$env.GHL_API_KEY}}" },
+            { "name": "Version", "value": "2021-07-28" }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "locationId", "value": "{{LOCATION_ID}}" },
+            { "name": "query", "value": "stage:new" },
+            { "name": "limit", "value": "50" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "claude-score-lead",
+      "name": "Claude AI - Score Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [750, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{$env.ANTHROPIC_API_KEY}}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":1024,\"system\":\"{{AGENT_PROMPT}}\",\"messages\":[{\"role\":\"user\",\"content\":\"Score this lead: \" + JSON.stringify($json.contact)}]}"
+      }
+    },
+    {
+      "id": "parse-score",
+      "name": "Parse Lead Score",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1000, 300],
+      "parameters": {
+        "jsCode": "const response = JSON.parse($input.first().json.content[0].text);\nreturn [{ json: { score: response.score, summary: response.summary, nextAction: response.nextAction, tags: response.tags, contactId: $input.first().json.contactId } }];"
+      }
+    },
+    {
+      "id": "route-by-score",
+      "name": "Route by Score",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 1,
+      "position": [1250, 300],
+      "parameters": {
+        "dataType": "number",
+        "value1": "={{$json.score}}",
+        "rules": {
+          "rules": [
+            { "operation": "larger", "value2": 70, "output": 0 },
+            { "operation": "larger", "value2": 40, "output": 1 }
+          ]
+        },
+        "fallbackOutput": 2
+      }
+    },
+    {
+      "id": "update-ghl-high",
+      "name": "Update GHL - High Score Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1500, 150],
+      "parameters": {
+        "method": "PUT",
+        "url": "={{$env.GHL_BASE_URL}}/contacts/{{$json.contactId}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{$env.GHL_API_KEY}}" },
+            { "name": "Version", "value": "2021-07-28" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"locationId\":\"{{LOCATION_ID}}\",\"tags\":[\"high-score-lead\",\"score-\" + $json.score],\"customFields\":{\"lead_score\":$json.score,\"lead_summary\":$json.summary}}"
+      }
+    },
+    {
+      "id": "notify-appointment-setter",
+      "name": "Notify Appointment Setter",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1750, 150],
+      "parameters": {
+        "method": "POST",
+        "url": "{{WEBHOOK_URL}}/appointments-{{CLIENT_ID}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"contactId\":$json.contactId,\"score\":$json.score,\"summary\":$json.summary,\"locationId\":\"{{LOCATION_ID}}\"}"
+      }
+    },
+    {
+      "id": "update-ghl-medium",
+      "name": "Update GHL - Medium Score Lead",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1500, 300],
+      "parameters": {
+        "method": "PUT",
+        "url": "={{$env.GHL_BASE_URL}}/contacts/{{$json.contactId}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{$env.GHL_API_KEY}}" },
+            { "name": "Version", "value": "2021-07-28" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"locationId\":\"{{LOCATION_ID}}\",\"tags\":[\"medium-score-lead\"],\"customFields\":{\"lead_score\":$json.score}}"
+      }
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [[{ "node": "Fetch Leads from GHL", "type": "main", "index": 0 }]]
+    },
+    "Webhook Trigger": {
+      "main": [[{ "node": "Claude AI - Score Lead", "type": "main", "index": 0 }]]
+    },
+    "Fetch Leads from GHL": {
+      "main": [[{ "node": "Claude AI - Score Lead", "type": "main", "index": 0 }]]
+    },
+    "Claude AI - Score Lead": {
+      "main": [[{ "node": "Parse Lead Score", "type": "main", "index": 0 }]]
+    },
+    "Parse Lead Score": {
+      "main": [[{ "node": "Route by Score", "type": "main", "index": 0 }]]
+    },
+    "Route by Score": {
+      "main": [
+        [{ "node": "Update GHL - High Score Lead", "type": "main", "index": 0 }],
+        [{ "node": "Update GHL - Medium Score Lead", "type": "main", "index": 0 }]
+      ]
+    },
+    "Update GHL - High Score Lead": {
+      "main": [[{ "node": "Notify Appointment Setter", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}

@@ -1,0 +1,206 @@
+{
+  "name": "Voice Closer Agent",
+  "active": false,
+  "nodes": [
+    {
+      "id": "ghl-stage-webhook",
+      "name": "GHL Pipeline Stage Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "path": "voice-closer-{{CLIENT_ID}}",
+        "responseMode": "onReceived"
+      },
+      "webhookId": "voice-closer-{{CLIENT_ID}}"
+    },
+    {
+      "id": "check-stage",
+      "name": "Check Stage is Ready to Close",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [500, 300],
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{$json.stage}}",
+              "operation": "contains",
+              "value2": "Ready to Close"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "get-prospect-data",
+      "name": "Get Prospect Data from GHL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [750, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.GHL_BASE_URL}}/contacts/{{$json.contactId}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{$env.GHL_API_KEY}}" },
+            { "name": "Version", "value": "2021-07-28" }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "locationId", "value": "{{LOCATION_ID}}" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "claude-personalise-script",
+      "name": "Claude - Personalise Closing Script",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{$env.ANTHROPIC_API_KEY}}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":1024,\"system\":\"{{AGENT_PROMPT}}\",\"messages\":[{\"role\":\"user\",\"content\":\"Personalise the closing script for this prospect: \" + JSON.stringify($json.contact) + \". Include specific references to their situation and pain points.\"}]}"
+      }
+    },
+    {
+      "id": "launch-closing-call",
+      "name": "Launch Closing Call via Bland.ai",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1250, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.bland.ai/v1/calls",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "={{$env.BLAND_API_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"phone_number\":$json.contact.phone,\"agent_id\":\"{{PHONE_NUMBER}}\",\"request_data\":{\"firstName\":$json.contact.firstName,\"lastName\":$json.contact.lastName,\"customScript\":$json.content[0].text}}"
+      }
+    },
+    {
+      "id": "close-result-webhook",
+      "name": "Closing Call Result Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 500],
+      "parameters": {
+        "path": "closer-result-{{CLIENT_ID}}",
+        "responseMode": "onReceived"
+      },
+      "webhookId": "closer-result-{{CLIENT_ID}}"
+    },
+    {
+      "id": "claude-analyse-close",
+      "name": "Claude - Analyse Closing Outcome",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [500, 500],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{$env.ANTHROPIC_API_KEY}}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":500,\"system\":\"Analyse closing call outcomes. Return JSON with: outcome (CLOSED_WON|CLOSED_LOST|FOLLOW_UP_NEEDED), reason, and nextAction.\",\"messages\":[{\"role\":\"user\",\"content\":\"Analyse this closing call: \" + JSON.stringify($json.transcripts)}]}"
+      }
+    },
+    {
+      "id": "update-ghl-deal",
+      "name": "Update GHL Deal Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [750, 500],
+      "parameters": {
+        "method": "PUT",
+        "url": "={{$env.GHL_BASE_URL}}/opportunities/{{$json.opportunityId}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{$env.GHL_API_KEY}}" },
+            { "name": "Version", "value": "2021-07-28" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"locationId\":\"{{LOCATION_ID}}\",\"status\":$json.outcome === 'CLOSED_WON' ? 'won' : 'lost'}"
+      }
+    },
+    {
+      "id": "send-payment-link",
+      "name": "Send Payment Link if Won",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 500],
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.GHL_BASE_URL}}/conversations/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{$env.GHL_API_KEY}}" },
+            { "name": "Version", "value": "2021-07-28" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"locationId\":\"{{LOCATION_ID}}\",\"contactId\":$json.contactId,\"type\":\"SMS\",\"message\":\"Fantastic! As promised, here's your payment link: {{WEBHOOK_URL}} and contract: {{PHONE_NUMBER}}\"}"
+      }
+    }
+  ],
+  "connections": {
+    "GHL Pipeline Stage Webhook": {
+      "main": [[{ "node": "Check Stage is Ready to Close", "type": "main", "index": 0 }]]
+    },
+    "Check Stage is Ready to Close": {
+      "main": [[{ "node": "Get Prospect Data from GHL", "type": "main", "index": 0 }]]
+    },
+    "Get Prospect Data from GHL": {
+      "main": [[{ "node": "Claude - Personalise Closing Script", "type": "main", "index": 0 }]]
+    },
+    "Claude - Personalise Closing Script": {
+      "main": [[{ "node": "Launch Closing Call via Bland.ai", "type": "main", "index": 0 }]]
+    },
+    "Closing Call Result Webhook": {
+      "main": [[{ "node": "Claude - Analyse Closing Outcome", "type": "main", "index": 0 }]]
+    },
+    "Claude - Analyse Closing Outcome": {
+      "main": [[{ "node": "Update GHL Deal Status", "type": "main", "index": 0 }]]
+    },
+    "Update GHL Deal Status": {
+      "main": [[{ "node": "Send Payment Link if Won", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}

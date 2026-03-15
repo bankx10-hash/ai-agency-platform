@@ -1,0 +1,187 @@
+{
+  "name": "Voice Outbound Agent",
+  "active": false,
+  "nodes": [
+    {
+      "id": "schedule-trigger",
+      "name": "Call Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 10 * * 1-5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "fetch-call-list",
+      "name": "Fetch Call List from GHL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [500, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.GHL_BASE_URL}}/contacts",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{$env.GHL_API_KEY}}" },
+            { "name": "Version", "value": "2021-07-28" }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "locationId", "value": "{{LOCATION_ID}}" },
+            { "name": "query", "value": "stage:{{CLIENT_ID}}-outbound-queue" },
+            { "name": "limit", "value": "50" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "launch-outbound-call",
+      "name": "Launch Call via Bland.ai",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [750, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.bland.ai/v1/calls",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "={{$env.BLAND_API_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"phone_number\":$json.phone,\"agent_id\":\"{{PHONE_NUMBER}}\",\"request_data\":{\"firstName\":$json.firstName,\"lastName\":$json.lastName,\"company\":$json.companyName}}"
+      }
+    },
+    {
+      "id": "call-complete-webhook",
+      "name": "Call Completed Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 500],
+      "parameters": {
+        "path": "voice-outbound-{{CLIENT_ID}}",
+        "responseMode": "onReceived"
+      },
+      "webhookId": "voice-outbound-{{CLIENT_ID}}"
+    },
+    {
+      "id": "get-call-result",
+      "name": "Get Call Result",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [500, 500],
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.bland.ai/v1/calls/{{$json.call_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "={{$env.BLAND_API_KEY}}" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "claude-analyse-outcome",
+      "name": "Claude - Analyse Call Outcome",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [750, 500],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{$env.ANTHROPIC_API_KEY}}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":500,\"system\":\"{{AGENT_PROMPT}}\",\"messages\":[{\"role\":\"user\",\"content\":\"Analyse this outbound call outcome. Classify as: INTERESTED, CALLBACK, NOT_INTERESTED, VOICEMAIL, NO_ANSWER. Return JSON with outcome, nextAction, and followUpSMS. Transcript: \" + JSON.stringify($json.transcripts)}]}"
+      }
+    },
+    {
+      "id": "update-ghl-outcome",
+      "name": "Update GHL with Outcome",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 500],
+      "parameters": {
+        "method": "PUT",
+        "url": "={{$env.GHL_BASE_URL}}/contacts/{{$json.contactId}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{$env.GHL_API_KEY}}" },
+            { "name": "Version", "value": "2021-07-28" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"locationId\":\"{{LOCATION_ID}}\",\"tags\":[\"call-outcome-\" + $json.outcome],\"customFields\":{\"last_call_outcome\":$json.outcome,\"call_date\":new Date().toISOString()}}"
+      }
+    },
+    {
+      "id": "send-followup-sms",
+      "name": "Send Follow-up SMS",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1250, 500],
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.GHL_BASE_URL}}/conversations/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{$env.GHL_API_KEY}}" },
+            { "name": "Version", "value": "2021-07-28" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"locationId\":\"{{LOCATION_ID}}\",\"contactId\":$json.contactId,\"type\":\"SMS\",\"message\":$json.followUpSMS}"
+      }
+    }
+  ],
+  "connections": {
+    "Call Schedule": {
+      "main": [[{ "node": "Fetch Call List from GHL", "type": "main", "index": 0 }]]
+    },
+    "Fetch Call List from GHL": {
+      "main": [[{ "node": "Launch Call via Bland.ai", "type": "main", "index": 0 }]]
+    },
+    "Call Completed Webhook": {
+      "main": [[{ "node": "Get Call Result", "type": "main", "index": 0 }]]
+    },
+    "Get Call Result": {
+      "main": [[{ "node": "Claude - Analyse Call Outcome", "type": "main", "index": 0 }]]
+    },
+    "Claude - Analyse Call Outcome": {
+      "main": [[{ "node": "Update GHL with Outcome", "type": "main", "index": 0 }]]
+    },
+    "Update GHL with Outcome": {
+      "main": [[{ "node": "Send Follow-up SMS", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}

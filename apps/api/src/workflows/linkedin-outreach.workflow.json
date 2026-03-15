@@ -1,0 +1,152 @@
+{
+  "name": "LinkedIn Outreach Agent",
+  "active": false,
+  "nodes": [
+    {
+      "id": "schedule-trigger",
+      "name": "Daily Schedule",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1-5"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "get-prospects",
+      "name": "Get Prospects via Phantombuster",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [500, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.phantombuster.com/api/v2/agents/{{CLIENT_ID}}-linkedin/launch",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Phantombuster-Key", "value": "={{$env.PHANTOMBUSTER_API_KEY}}" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"argument\":{\"searchUrl\":\"{{WEBHOOK_URL}}\",\"numberOfProfiles\":20}}"
+      }
+    },
+    {
+      "id": "wait-for-results",
+      "name": "Wait 60s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1,
+      "position": [750, 300],
+      "parameters": {
+        "unit": "seconds",
+        "amount": 60
+      }
+    },
+    {
+      "id": "claude-personalise",
+      "name": "Claude - Personalise Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{$env.ANTHROPIC_API_KEY}}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":300,\"system\":\"{{AGENT_PROMPT}}\",\"messages\":[{\"role\":\"user\",\"content\":\"Write a LinkedIn connection request for: \" + JSON.stringify($json)}]}"
+      }
+    },
+    {
+      "id": "log-to-ghl",
+      "name": "Log Activity to GHL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1250, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.GHL_BASE_URL}}/contacts",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{$env.GHL_API_KEY}}" },
+            { "name": "Version", "value": "2021-07-28" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"locationId\":\"{{LOCATION_ID}}\",\"firstName\":$json.firstName,\"lastName\":$json.lastName,\"source\":\"LinkedIn Outreach\",\"tags\":[\"linkedin-prospect\",\"client-{{CLIENT_ID}}\"]}"
+      }
+    },
+    {
+      "id": "webhook-reply-handler",
+      "name": "Handle LinkedIn Reply",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 500],
+      "parameters": {
+        "path": "linkedin-reply-{{CLIENT_ID}}",
+        "responseMode": "onReceived"
+      },
+      "webhookId": "linkedin-reply-{{CLIENT_ID}}"
+    },
+    {
+      "id": "claude-classify-reply",
+      "name": "Claude - Classify Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [500, 500],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{$env.ANTHROPIC_API_KEY}}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":200,\"system\":\"Classify LinkedIn replies as: INTERESTED, QUESTION, NOT_INTERESTED, or NEUTRAL. Return JSON with classification and suggested_response.\",\"messages\":[{\"role\":\"user\",\"content\":\"Classify this reply: \" + $json.message}]}"
+      }
+    }
+  ],
+  "connections": {
+    "Daily Schedule": {
+      "main": [[{ "node": "Get Prospects via Phantombuster", "type": "main", "index": 0 }]]
+    },
+    "Get Prospects via Phantombuster": {
+      "main": [[{ "node": "Wait 60s", "type": "main", "index": 0 }]]
+    },
+    "Wait 60s": {
+      "main": [[{ "node": "Claude - Personalise Message", "type": "main", "index": 0 }]]
+    },
+    "Claude - Personalise Message": {
+      "main": [[{ "node": "Log Activity to GHL", "type": "main", "index": 0 }]]
+    },
+    "Handle LinkedIn Reply": {
+      "main": [[{ "node": "Claude - Classify Reply", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}

@@ -1,0 +1,157 @@
+{
+  "name": "Advertising Agent",
+  "active": false,
+  "nodes": [
+    {
+      "id": "daily-check",
+      "name": "Daily Optimisation Check",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "fetch-meta-stats",
+      "name": "Fetch Meta Ad Stats",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [500, 200],
+      "parameters": {
+        "method": "GET",
+        "url": "https://graph.facebook.com/v18.0/act_{{CLIENT_ID}}/insights",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "fields", "value": "campaign_name,spend,impressions,clicks,ctr,cpc,roas,conversions" },
+            { "name": "date_preset", "value": "yesterday" },
+            { "name": "level", "value": "adset" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "claude-analyse-performance",
+      "name": "Claude - Analyse Performance",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [750, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{$env.ANTHROPIC_API_KEY}}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":2048,\"system\":\"{{AGENT_PROMPT}}\",\"messages\":[{\"role\":\"user\",\"content\":\"Analyse this ad performance data and provide optimisation recommendations: \" + JSON.stringify($json)}]}"
+      }
+    },
+    {
+      "id": "pause-underperforming",
+      "name": "Pause Underperforming Ads",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 200],
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v18.0/{{$json.adSetId}}",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"status\":\"PAUSED\"}"
+      }
+    },
+    {
+      "id": "generate-new-copy",
+      "name": "Claude - Generate New Ad Copy",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 400],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{$env.ANTHROPIC_API_KEY}}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":1024,\"system\":\"{{AGENT_PROMPT}}\",\"messages\":[{\"role\":\"user\",\"content\":\"Generate 3 new ad copy variants. Return as JSON array with headline, description, and cta fields.\"}]}"
+      }
+    },
+    {
+      "id": "budget-alert-webhook",
+      "name": "Budget Alert Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 500],
+      "parameters": {
+        "path": "ads-alert-{{CLIENT_ID}}",
+        "responseMode": "onReceived"
+      },
+      "webhookId": "ads-alert-{{CLIENT_ID}}"
+    },
+    {
+      "id": "send-alert-email",
+      "name": "Send Alert Email via GHL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1250, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.GHL_BASE_URL}}/conversations/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{$env.GHL_API_KEY}}" },
+            { "name": "Version", "value": "2021-07-28" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"locationId\":\"{{LOCATION_ID}}\",\"type\":\"Email\",\"subject\":\"Ad Performance Alert - Action Required\",\"body\":\"Your advertising agent has detected issues: \" + JSON.stringify($json)}"
+      }
+    }
+  ],
+  "connections": {
+    "Daily Optimisation Check": {
+      "main": [[{ "node": "Fetch Meta Ad Stats", "type": "main", "index": 0 }]]
+    },
+    "Fetch Meta Ad Stats": {
+      "main": [[{ "node": "Claude - Analyse Performance", "type": "main", "index": 0 }]]
+    },
+    "Claude - Analyse Performance": {
+      "main": [
+        [{ "node": "Pause Underperforming Ads", "type": "main", "index": 0 }],
+        [{ "node": "Claude - Generate New Ad Copy", "type": "main", "index": 0 }]
+      ]
+    },
+    "Pause Underperforming Ads": {
+      "main": [[{ "node": "Send Alert Email via GHL", "type": "main", "index": 0 }]]
+    },
+    "Budget Alert Webhook": {
+      "main": [[{ "node": "Send Alert Email via GHL", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}

@@ -1,0 +1,191 @@
+{
+  "name": "Appointment Setter Agent",
+  "active": false,
+  "nodes": [
+    {
+      "id": "new-lead-webhook",
+      "name": "New Lead Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "path": "appointments-{{CLIENT_ID}}",
+        "responseMode": "onReceived",
+        "responseData": "allEntries"
+      },
+      "webhookId": "appointments-{{CLIENT_ID}}"
+    },
+    {
+      "id": "get-contact-details",
+      "name": "Get Contact from GHL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [500, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.GHL_BASE_URL}}/contacts/{{$json.contactId}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{$env.GHL_API_KEY}}" },
+            { "name": "Version", "value": "2021-07-28" }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "locationId", "value": "{{LOCATION_ID}}" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "claude-write-followup",
+      "name": "Claude - Write Follow-up Message",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [750, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{$env.ANTHROPIC_API_KEY}}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":500,\"system\":\"{{AGENT_PROMPT}}\",\"messages\":[{\"role\":\"user\",\"content\":\"Write a follow-up SMS for this lead (day 0 initial outreach): \" + JSON.stringify($json.contact)}]}"
+      }
+    },
+    {
+      "id": "send-sms",
+      "name": "Send SMS via GHL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.GHL_BASE_URL}}/conversations/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{$env.GHL_API_KEY}}" },
+            { "name": "Version", "value": "2021-07-28" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"locationId\":\"{{LOCATION_ID}}\",\"contactId\":$json.contactId,\"type\":\"SMS\",\"message\":$json.content[0].text}"
+      }
+    },
+    {
+      "id": "reply-handler-webhook",
+      "name": "Handle Lead Reply",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 500],
+      "parameters": {
+        "path": "appt-reply-{{CLIENT_ID}}",
+        "responseMode": "onReceived"
+      },
+      "webhookId": "appt-reply-{{CLIENT_ID}}"
+    },
+    {
+      "id": "claude-classify-reply",
+      "name": "Claude - Classify Reply",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [500, 500],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{$env.ANTHROPIC_API_KEY}}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":500,\"system\":\"{{AGENT_PROMPT}}\",\"messages\":[{\"role\":\"user\",\"content\":\"Classify this reply and provide a response: \" + $json.message}]}"
+      }
+    },
+    {
+      "id": "check-calendar",
+      "name": "Get Calendar Slots",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [750, 500],
+      "parameters": {
+        "method": "GET",
+        "url": "={{$env.GHL_BASE_URL}}/calendars/{{CALENDAR_ID}}/free-slots",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{$env.GHL_API_KEY}}" },
+            { "name": "Version", "value": "2021-07-28" }
+          ]
+        },
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "locationId", "value": "{{LOCATION_ID}}" },
+            { "name": "startDate", "value": "={{new Date().toISOString().split('T')[0]}}" },
+            { "name": "endDate", "value": "={{new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]}}" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "book-appointment",
+      "name": "Book Appointment in GHL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 500],
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.GHL_BASE_URL}}/appointments",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{$env.GHL_API_KEY}}" },
+            { "name": "Version", "value": "2021-07-28" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"locationId\":\"{{LOCATION_ID}}\",\"calendarId\":\"{{CALENDAR_ID}}\",\"contactId\":$json.contactId,\"startTime\":$json.selectedSlot}"
+      }
+    }
+  ],
+  "connections": {
+    "New Lead Webhook": {
+      "main": [[{ "node": "Get Contact from GHL", "type": "main", "index": 0 }]]
+    },
+    "Get Contact from GHL": {
+      "main": [[{ "node": "Claude - Write Follow-up Message", "type": "main", "index": 0 }]]
+    },
+    "Claude - Write Follow-up Message": {
+      "main": [[{ "node": "Send SMS via GHL", "type": "main", "index": 0 }]]
+    },
+    "Handle Lead Reply": {
+      "main": [[{ "node": "Claude - Classify Reply", "type": "main", "index": 0 }]]
+    },
+    "Claude - Classify Reply": {
+      "main": [[{ "node": "Get Calendar Slots", "type": "main", "index": 0 }]]
+    },
+    "Get Calendar Slots": {
+      "main": [[{ "node": "Book Appointment in GHL", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}

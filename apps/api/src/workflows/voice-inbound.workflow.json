@@ -1,0 +1,157 @@
+{
+  "name": "Voice Inbound Agent",
+  "active": false,
+  "nodes": [
+    {
+      "id": "call-completed-webhook",
+      "name": "Call Completed Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300],
+      "parameters": {
+        "path": "voice-inbound-{{CLIENT_ID}}",
+        "responseMode": "onReceived",
+        "responseData": "allEntries"
+      },
+      "webhookId": "voice-inbound-{{CLIENT_ID}}"
+    },
+    {
+      "id": "get-transcript",
+      "name": "Get Call Transcript from Bland.ai",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [500, 300],
+      "parameters": {
+        "method": "GET",
+        "url": "https://api.bland.ai/v1/calls/{{$json.call_id}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "={{$env.BLAND_API_KEY}}" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "claude-analyse-call",
+      "name": "Claude - Analyse Call",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [750, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{$env.ANTHROPIC_API_KEY}}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":1024,\"system\":\"{{AGENT_PROMPT}}\",\"messages\":[{\"role\":\"user\",\"content\":\"Analyse this call transcript and extract: caller name, contact info, intent, appointment request (if any), and action items. Return as JSON. Transcript: \" + JSON.stringify($json.transcripts)}]}"
+      }
+    },
+    {
+      "id": "create-ghl-contact",
+      "name": "Create/Update GHL Contact",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 200],
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.GHL_BASE_URL}}/contacts",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{$env.GHL_API_KEY}}" },
+            { "name": "Version", "value": "2021-07-28" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"locationId\":\"{{LOCATION_ID}}\",\"firstName\":$json.callerName?.split(' ')[0],\"phone\":$json.callerPhone,\"email\":$json.callerEmail,\"source\":\"Inbound Call\",\"tags\":[\"inbound-call\"]}"
+      }
+    },
+    {
+      "id": "add-call-note",
+      "name": "Add Call Note to GHL",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1250, 200],
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.GHL_BASE_URL}}/contacts/{{$json.contactId}}/notes",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{$env.GHL_API_KEY}}" },
+            { "name": "Version", "value": "2021-07-28" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"locationId\":\"{{LOCATION_ID}}\",\"body\":\"Inbound call summary: \" + $json.summary + \"\\n\\nAction items: \" + $json.actionItems}"
+      }
+    },
+    {
+      "id": "book-appointment",
+      "name": "Book Appointment if Requested",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 400],
+      "parameters": {
+        "method": "POST",
+        "url": "={{$env.GHL_BASE_URL}}/appointments",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer {{$env.GHL_API_KEY}}" },
+            { "name": "Version", "value": "2021-07-28" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"locationId\":\"{{LOCATION_ID}}\",\"calendarId\":\"{{CALENDAR_ID}}\",\"contactId\":$json.contactId,\"title\":\"Follow-up from Inbound Call\"}"
+      }
+    },
+    {
+      "id": "calendar-webhook",
+      "name": "Calendar Booking Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 500],
+      "parameters": {
+        "path": "voice-calendar-{{CLIENT_ID}}",
+        "responseMode": "onReceived"
+      },
+      "webhookId": "voice-calendar-{{CLIENT_ID}}"
+    }
+  ],
+  "connections": {
+    "Call Completed Webhook": {
+      "main": [[{ "node": "Get Call Transcript from Bland.ai", "type": "main", "index": 0 }]]
+    },
+    "Get Call Transcript from Bland.ai": {
+      "main": [[{ "node": "Claude - Analyse Call", "type": "main", "index": 0 }]]
+    },
+    "Claude - Analyse Call": {
+      "main": [
+        [{ "node": "Create/Update GHL Contact", "type": "main", "index": 0 }],
+        [{ "node": "Book Appointment if Requested", "type": "main", "index": 0 }]
+      ]
+    },
+    "Create/Update GHL Contact": {
+      "main": [[{ "node": "Add Call Note to GHL", "type": "main", "index": 0 }]]
+    },
+    "Calendar Booking Webhook": {
+      "main": [[{ "node": "Book Appointment if Requested", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true
+  }
+}
