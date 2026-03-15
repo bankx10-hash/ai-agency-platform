@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, Prisma } from '@prisma/client'
 import { AgentType, AgentStatus } from '../../../packages/shared/types/agent.types'
 import { n8nService } from '../services/n8n.service'
 import { logger } from '../utils/logger'
@@ -12,7 +12,8 @@ export abstract class BaseAgent {
 
   abstract generatePrompt(config: Record<string, unknown>, contactData?: Record<string, unknown>): string
 
-  abstract deploy(clientId: string, config: Record<string, unknown>): Promise<{
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  abstract deploy(clientId: string, config: any): Promise<{
     id: string
     n8nWorkflowId?: string
   }>
@@ -81,7 +82,7 @@ export abstract class BaseAgent {
           ...existingMetrics,
           ...metrics,
           lastUpdatedAt: new Date().toISOString()
-        }
+        } as Prisma.InputJsonValue
       }
     })
 
@@ -99,7 +100,7 @@ export abstract class BaseAgent {
         agentType: this.agentType,
         status: AgentStatus.ACTIVE,
         n8nWorkflowId,
-        config,
+        config: config as Prisma.InputJsonValue,
         metrics: {
           totalLeads: 0,
           callsMade: 0,
@@ -107,7 +108,7 @@ export abstract class BaseAgent {
           emailsSent: 0,
           errors: 0,
           createdAt: new Date().toISOString()
-        }
+        } as Prisma.InputJsonValue
       }
     })
 

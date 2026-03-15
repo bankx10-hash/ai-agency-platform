@@ -12,13 +12,13 @@ export class N8NService {
     const apiKey = process.env.N8N_API_KEY
 
     if (!apiKey) {
-      throw new Error('N8N_API_KEY environment variable is not set')
+      logger.warn('N8N_API_KEY not set — workflow automation features will be unavailable')
     }
 
     this.client = axios.create({
       baseURL: `${baseURL}/api/v1`,
       headers: {
-        'X-N8N-API-KEY': apiKey,
+        'X-N8N-API-KEY': apiKey || 'not-configured',
         'Content-Type': 'application/json'
       }
     })
@@ -55,8 +55,8 @@ export class N8NService {
 
     const replacements: Record<string, string> = {
       '{{CLIENT_ID}}': config.clientId,
-      '{{LOCATION_ID}}': config.locationId,
-      '{{AGENT_PROMPT}}': config.agentPrompt.replace(/\\/g, '\\\\').replace(/"/g, '\\"'),
+      '{{LOCATION_ID}}': config.locationId || '',
+      '{{AGENT_PROMPT}}': (config.agentPrompt || '').replace(/\\/g, '\\\\').replace(/"/g, '\\"'),
       '{{WEBHOOK_URL}}': config.webhookUrl || '',
       '{{PHONE_NUMBER}}': config.phoneNumber || '',
       '{{CALENDAR_ID}}': config.calendarId || '',

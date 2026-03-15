@@ -23,24 +23,22 @@ router.get('/:id', authMiddleware, async (req: AuthRequest, res: Response): Prom
       return
     }
 
-    const client = await prisma.client.findUnique({
+    const clientRaw = await prisma.client.findUnique({
       where: { id },
       include: {
         agents: {
           orderBy: { createdAt: 'desc' }
         },
         onboarding: true
-      },
-      omit: {
-        passwordHash: true
       }
     })
 
-    if (!client) {
+    if (!clientRaw) {
       res.status(404).json({ error: 'Client not found' })
       return
     }
 
+    const { passwordHash: _ph, ...client } = clientRaw
     res.json({ client })
   } catch (error) {
     logger.error('Error fetching client', { error, clientId: req.params.id })
@@ -63,12 +61,12 @@ router.patch('/:id', authMiddleware, async (req: AuthRequest, res: Response): Pr
       return
     }
 
-    const client = await prisma.client.update({
+    const clientRaw = await prisma.client.update({
       where: { id },
-      data: parsed.data,
-      omit: { passwordHash: true }
+      data: parsed.data
     })
 
+    const { passwordHash: _ph2, ...client } = clientRaw
     res.json({ client })
   } catch (error) {
     logger.error('Error updating client', { error, clientId: req.params.id })

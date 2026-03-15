@@ -74,7 +74,7 @@ model AgentDeployment {
   agentType     AgentType
   status        AgentStatus @default(INACTIVE)
   n8nWorkflowId String?
-  blandAgentId  String?
+  retellAgentId String?
   config        Json
   metrics       Json?
   createdAt     DateTime    @default(now())

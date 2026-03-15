@@ -75,21 +75,21 @@ Always be respectful of the person's time. If they're busy, offer to call at a b
       'You are an expert at creating outbound sales call scripts that feel authentic and get results.'
     )
 
-    let blandAgentId: string | undefined
+    let retellAgentId: string | undefined
 
     try {
       const voiceResult = await voiceService.createOutboundAgent({
         prompt: outboundScript,
-        voice: 'nat',
+        voice: 'eleven_labs_english_male_adam',
         firstSentence: `Hi, is this a good time to chat for just 2 minutes? I'm calling from ${config.businessName}.`,
         clientId,
         businessName: config.businessName
       })
 
-      blandAgentId = voiceResult.agentId
-      logger.info('Bland.ai outbound agent created', { clientId, blandAgentId })
+      retellAgentId = voiceResult.agentId
+      logger.info('Retell outbound agent created', { clientId, retellAgentId })
     } catch (error) {
-      logger.warn('Failed to create Bland.ai outbound agent', { clientId, error })
+      logger.warn('Failed to create Retell outbound agent', { clientId, error })
     }
 
     let workflowResult: { workflowId: string } | undefined
@@ -111,15 +111,15 @@ Always be respectful of the person's time. If they're busy, offer to call at a b
       {
         ...config,
         generatedScript: outboundScript,
-        bland_agent_id: blandAgentId
+        retell_agent_id: retellAgentId
       },
       workflowResult?.workflowId
     )
 
-    if (blandAgentId) {
+    if (retellAgentId) {
       await prisma.agentDeployment.update({
         where: { id: deployment.id },
-        data: { blandAgentId }
+        data: { retellAgentId }
       })
     }
 

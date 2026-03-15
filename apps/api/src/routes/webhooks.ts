@@ -235,16 +235,16 @@ router.post('/ghl', async (req: Request, res: Response): Promise<void> => {
   }
 })
 
-router.post('/bland', async (req: Request, res: Response): Promise<void> => {
+router.post('/retell', async (req: Request, res: Response): Promise<void> => {
   try {
     const payload = req.body as Record<string, unknown>
 
-    logger.info('Bland.ai webhook received', { callId: payload.call_id })
+    logger.info('Retell webhook received', { callId: payload.call_id })
 
     const callId = payload.call_id as string
-    const status = payload.status as string
+    const status = payload.call_status as string
 
-    if (status === 'completed' || status === 'ended') {
+    if (status === 'ended') {
       const metadata = payload.metadata as Record<string, string> | undefined
       const clientId = metadata?.clientId
 
@@ -276,7 +276,7 @@ router.post('/bland', async (req: Request, res: Response): Promise<void> => {
 
     res.json({ received: true })
   } catch (error) {
-    logger.error('Error processing Bland webhook', { error })
+    logger.error('Error processing Retell webhook', { error })
     res.status(500).json({ error: 'Webhook processing error' })
   }
 })

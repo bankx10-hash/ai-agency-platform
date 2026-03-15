@@ -159,10 +159,12 @@ export class EmailService {
   }
 
   getGmailAuthUrl(): string {
-    const oauth2Client = this.getOAuth2Client()
     const redirectUri = process.env.GMAIL_REDIRECT_URI || 'http://localhost:4000/onboarding/oauth/gmail/callback'
-
-    oauth2Client.redirectUri = redirectUri
+    const oauth2Client = new (google.auth.OAuth2)(
+      process.env.GMAIL_CLIENT_ID,
+      process.env.GMAIL_CLIENT_SECRET,
+      redirectUri
+    )
 
     return oauth2Client.generateAuthUrl({
       access_type: 'offline',
@@ -180,9 +182,12 @@ export class EmailService {
     refreshToken: string
     email: string
   }> {
-    const oauth2Client = this.getOAuth2Client()
     const redirectUri = process.env.GMAIL_REDIRECT_URI || 'http://localhost:4000/onboarding/oauth/gmail/callback'
-    oauth2Client.redirectUri = redirectUri
+    const oauth2Client = new (google.auth.OAuth2)(
+      process.env.GMAIL_CLIENT_ID,
+      process.env.GMAIL_CLIENT_SECRET,
+      redirectUri
+    )
 
     const { tokens } = await oauth2Client.getToken(code)
     oauth2Client.setCredentials(tokens)

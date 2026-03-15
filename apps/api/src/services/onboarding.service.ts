@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, Prisma } from '@prisma/client'
 import { ghlService } from './ghl.service'
 import { n8nService } from './n8n.service'
 import { voiceService } from './voice.service'
@@ -270,8 +270,9 @@ export class OnboardingService {
 
         const { agentId, phoneNumber } = await voiceService.createInboundAgent({
           prompt: config.greeting_script as string || `Thank you for calling ${businessName}. How can I help?`,
-          voice: config.voice_id as string || 'nat',
+          voice: config.voice_id as string || 'eleven_labs_english_male_adam',
           firstSentence: `Thank you for calling ${businessName}. How can I help you today?`,
+          twilioPhoneNumber: config.twilio_phone_number as string,
           clientId,
           businessName,
           transferNumber: config.escalation_number as string || undefined
@@ -280,11 +281,11 @@ export class OnboardingService {
         await prisma.agentDeployment.update({
           where: { id: agent.id },
           data: {
-            blandAgentId: agentId,
+            retellAgentId: agentId,
             config: {
               ...config,
               phone_number: phoneNumber,
-              bland_agent_id: agentId
+              retell_agent_id: agentId
             }
           }
         })
@@ -303,7 +304,7 @@ export class OnboardingService {
           create: {
             id: `voice-inbound-${clientId}`,
             clientId,
-            service: 'bland-inbound',
+            service: 'retell-inbound',
             credentials: credential
           }
         })
@@ -341,7 +342,7 @@ export class OnboardingService {
           data: {
             ...(existing.data as Record<string, unknown>),
             ...data
-          }
+          } as Prisma.InputJsonValue
         }
       })
     } else {
@@ -350,7 +351,7 @@ export class OnboardingService {
           clientId,
           step,
           status: 'IN_PROGRESS',
-          data
+          data: data as Prisma.InputJsonValue
         }
       })
     }

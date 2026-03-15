@@ -1,5 +1,5 @@
 import { Router, Response } from 'express'
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient, Prisma } from '@prisma/client'
 import { authMiddleware, AuthRequest } from '../middleware/auth'
 import { n8nService } from '../services/n8n.service'
 import { voiceService } from '../services/voice.service'
@@ -131,7 +131,7 @@ router.patch('/:deploymentId/config', authMiddleware, async (req: AuthRequest, r
     const updated = await prisma.agentDeployment.update({
       where: { id: deploymentId },
       data: {
-        config: newConfig,
+        config: newConfig as Prisma.InputJsonValue,
         updatedAt: new Date()
       }
     })

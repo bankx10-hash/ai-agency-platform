@@ -14,6 +14,7 @@ export interface VoiceInboundConfig {
   escalation_number: string
   voice_id: string
   calendar_id: string
+  twilio_phone_number: string
   locationId: string
   businessName: string
 }
@@ -68,26 +69,27 @@ Respond naturally as if in a real phone conversation.`
       'You are an expert at creating AI voice agent prompts for businesses. Make them sound completely human.'
     )
 
-    let blandAgentId: string | undefined
+    let retellAgentId: string | undefined
     let phoneNumber: string | undefined
 
     try {
       const voiceResult = await voiceService.createInboundAgent({
         prompt: voicePrompt,
-        voice: config.voice_id || 'nat',
+        voice: config.voice_id || 'eleven_labs_english_male_adam',
         firstSentence: config.greeting_script,
         clientId,
         businessName: config.businessName,
         transferNumber: config.escalation_number,
-        calendarWebhook: `${process.env.N8N_BASE_URL}/webhook/voice-calendar-${clientId}`
+        calendarWebhook: `${process.env.N8N_BASE_URL}/webhook/voice-calendar-${clientId}`,
+        twilioPhoneNumber: config.twilio_phone_number
       })
 
-      blandAgentId = voiceResult.agentId
+      retellAgentId = voiceResult.agentId
       phoneNumber = voiceResult.phoneNumber
 
-      logger.info('Bland.ai inbound agent created', { clientId, blandAgentId, phoneNumber })
+      logger.info('Retell inbound agent created', { clientId, retellAgentId, phoneNumber })
     } catch (error) {
-      logger.warn('Failed to create Bland.ai agent', { clientId, error })
+      logger.warn('Failed to create Retell agent', { clientId, error })
     }
 
     let workflowResult: { workflowId: string } | undefined
@@ -112,15 +114,15 @@ Respond naturally as if in a real phone conversation.`
         ...config,
         generatedPrompt: voicePrompt,
         phone_number: phoneNumber,
-        bland_agent_id: blandAgentId
+        retell_agent_id: retellAgentId
       },
       workflowResult?.workflowId
     )
 
-    if (blandAgentId) {
+    if (retellAgentId) {
       await prisma.agentDeployment.update({
         where: { id: deployment.id },
-        data: { blandAgentId }
+        data: { retellAgentId }
       })
     }
 

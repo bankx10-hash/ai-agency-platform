@@ -5,6 +5,6 @@
     "rootDir": "../../",
     "baseUrl": "./src"
   },
-  "include": ["src/**/*", "../../packages/shared/**/*"],
+  "include": ["src/**/*", "../packages/shared/**/*"],
   "exclude": ["node_modules", "dist"]
 }

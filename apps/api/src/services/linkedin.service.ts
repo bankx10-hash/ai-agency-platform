@@ -35,13 +35,13 @@ export class LinkedInService {
   constructor() {
     const apiKey = process.env.PHANTOMBUSTER_API_KEY
     if (!apiKey) {
-      throw new Error('PHANTOMBUSTER_API_KEY environment variable is not set')
+      logger.warn('PHANTOMBUSTER_API_KEY not set — LinkedIn automation features will be unavailable')
     }
 
     this.client = axios.create({
       baseURL: 'https://api.phantombuster.com/api/v2',
       headers: {
-        'X-Phantombuster-Key': apiKey,
+        'X-Phantombuster-Key': apiKey || 'not-configured',
         'Content-Type': 'application/json'
       }
     })

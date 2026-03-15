@@ -55,13 +55,13 @@ export class GHLService {
     this.agencyId = process.env.GHL_AGENCY_ID || ''
 
     if (!apiKey) {
-      throw new Error('GHL_API_KEY environment variable is not set')
+      logger.warn('GHL_API_KEY not set — GoHighLevel features will be unavailable')
     }
 
     this.client = axios.create({
       baseURL,
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        'Authorization': `Bearer ${apiKey || 'not-configured'}`,
         'Version': '2021-07-28',
         'Content-Type': 'application/json'
       }

@@ -3,21 +3,29 @@ import { Plan } from '../../../packages/shared/types/client.types'
 import { logger } from '../utils/logger'
 
 export class StripeService {
-  private stripe: Stripe
+  private stripe: Stripe | null = null
+
+  private getStripe(): Stripe {
+    if (!this.stripe) {
+      const secretKey = process.env.STRIPE_SECRET_KEY
+      if (!secretKey) {
+        throw new Error('STRIPE_SECRET_KEY environment variable is not set')
+      }
+      this.stripe = new Stripe(secretKey, {
+        apiVersion: '2023-10-16' as Stripe.LatestApiVersion
+      })
+    }
+    return this.stripe
+  }
 
   constructor() {
-    const secretKey = process.env.STRIPE_SECRET_KEY
-    if (!secretKey) {
-      throw new Error('STRIPE_SECRET_KEY environment variable is not set')
+    if (!process.env.STRIPE_SECRET_KEY) {
+      logger.warn('STRIPE_SECRET_KEY not set — billing features will be unavailable')
     }
-
-    this.stripe = new Stripe(secretKey, {
-      apiVersion: '2023-10-16' as Stripe.LatestApiVersion
-    })
   }
 
   async createCustomer(email: string, name: string): Promise<{ id: string }> {
-    const customer = await this.stripe.customers.create({
+    const customer = await this.getStripe().customers.create({
       email,
       name,
       metadata: {
@@ -34,7 +42,7 @@ export class StripeService {
     customerId: string,
     priceId: string
   ): Promise<{ id: string; clientSecret?: string }> {
-    const subscription = await this.stripe.subscriptions.create({
+    const subscription = await this.getStripe().subscriptions.create({
       customer: customerId,
       items: [{ price: priceId }],
       payment_behavior: 'default_incomplete',
@@ -54,7 +62,7 @@ export class StripeService {
   }
 
   async cancelSubscription(subscriptionId: string): Promise<void> {
-    await this.stripe.subscriptions.cancel(subscriptionId)
+    await this.getStripe().subscriptions.cancel(subscriptionId)
     logger.info('Stripe subscription cancelled', { subscriptionId })
   }
 
@@ -65,7 +73,7 @@ export class StripeService {
     cancelUrl: string,
     metadata?: Record<string, string>
   ): Promise<{ url: string; sessionId: string }> {
-    const session = await this.stripe.checkout.sessions.create({
+    const session = await this.getStripe().checkout.sessions.create({
       customer: customerId,
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
@@ -82,7 +90,7 @@ export class StripeService {
     customerId: string,
     returnUrl: string
   ): Promise<{ url: string }> {
-    const session = await this.stripe.billingPortal.sessions.create({
+    const session = await this.getStripe().billingPortal.sessions.create({
       customer: customerId,
       return_url: returnUrl
     })
@@ -94,7 +102,7 @@ export class StripeService {
     if (!webhookSecret) {
       throw new Error('STRIPE_WEBHOOK_SECRET environment variable is not set')
     }
-    return this.stripe.webhooks.constructEvent(payload, sig, webhookSecret)
+    return this.getStripe().webhooks.constructEvent(payload, sig, webhookSecret)
   }
 
   getPlanFromPriceId(priceId: string): Plan {
@@ -111,7 +119,7 @@ export class StripeService {
   }
 
   async getSubscription(subscriptionId: string): Promise<Stripe.Subscription> {
-    return this.stripe.subscriptions.retrieve(subscriptionId)
+    return this.getStripe().subscriptions.retrieve(subscriptionId)
   }
 }
 
