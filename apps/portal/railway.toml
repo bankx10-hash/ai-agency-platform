@@ -1,0 +1,5 @@
+[build]
+dockerfilePath = "Dockerfile.portal"
+
+[deploy]
+startCommand = "npm run start"
