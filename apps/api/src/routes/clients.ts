@@ -11,7 +11,9 @@ const updateClientSchema = z.object({
   businessName: z.string().min(1).optional(),
   phone: z.string().optional(),
   ghlSubAccountId: z.string().optional(),
-  ghlLocationId: z.string().optional()
+  ghlLocationId: z.string().optional(),
+  businessDescription: z.string().optional(),
+  icpDescription: z.string().optional()
 })
 
 router.get('/:id', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {

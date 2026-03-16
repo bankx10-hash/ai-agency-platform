@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from 'axios'
+import twilio from 'twilio'
 import { logger } from '../utils/logger'
 
 interface InboundAgentConfig {
@@ -159,13 +160,14 @@ export class VoiceService {
   async launchOutboundCall(
     agentId: string,
     toNumber: string,
-    contactData: CallData
+    contactData: CallData,
+    fromNumber?: string
   ): Promise<{ callId: string }> {
-    const fromNumber = process.env.TWILIO_OUTBOUND_NUMBER
-    if (!fromNumber) throw new Error('TWILIO_OUTBOUND_NUMBER not set')
+    const from = fromNumber || process.env.TWILIO_OUTBOUND_NUMBER
+    if (!from) throw new Error('No outbound number provided and TWILIO_OUTBOUND_NUMBER not set')
 
     const response = await this.client.post('/create-call', {
-      from_number: fromNumber,
+      from_number: from,
       to_number: toNumber,
       override_agent_id: agentId,
       metadata: contactData
@@ -193,6 +195,43 @@ export class VoiceService {
       outcome: call.call_analysis?.call_successful ? 'successful' : 'unsuccessful',
       recordingUrl: call.recording_url
     }
+  }
+
+  async provisionNumber(areaCode?: string): Promise<string> {
+    const accountSid = process.env.TWILIO_ACCOUNT_SID
+    const authToken = process.env.TWILIO_AUTH_TOKEN
+    const trunkSid = process.env.TWILIO_SIP_TRUNK_SID
+
+    if (!accountSid || !authToken || !trunkSid) {
+      throw new Error('TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_SIP_TRUNK_SID must be set')
+    }
+
+    const twilioClient = twilio(accountSid, authToken)
+
+    const searchParams: Record<string, unknown> = { limit: 1, voiceEnabled: true }
+    if (areaCode) searchParams.areaCode = areaCode
+
+    const available = await twilioClient.availablePhoneNumbers('US').local.list(searchParams)
+
+    if (!available.length) {
+      throw new Error(`No available numbers${areaCode ? ` for area code ${areaCode}` : ''}`)
+    }
+
+    const purchased = await twilioClient.incomingPhoneNumbers.create({
+      phoneNumber: available[0].phoneNumber
+    })
+
+    await twilioClient.trunking.v1.trunks(trunkSid).phoneNumbers.create({
+      phoneNumberSid: purchased.sid
+    })
+
+    logger.info('Twilio number provisioned and attached to SIP trunk', {
+      phoneNumber: purchased.phoneNumber,
+      sid: purchased.sid,
+      trunkSid
+    })
+
+    return purchased.phoneNumber
   }
 
   async updateAgentPrompt(agentId: string, newPrompt: string): Promise<void> {

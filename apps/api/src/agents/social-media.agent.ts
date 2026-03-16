@@ -2,6 +2,7 @@ import { BaseAgent } from './base.agent'
 import { AgentType } from '../../../packages/shared/types/agent.types'
 import { n8nService } from '../services/n8n.service'
 import { socialService } from '../services/social.service'
+import { imageService } from '../services/image.service'
 import { logger } from '../utils/logger'
 
 export type SupportedPlatform = 'instagram' | 'facebook' | 'tiktok' | 'linkedin' | 'twitter'
@@ -157,7 +158,7 @@ Each week is an array of post objects. Plan ${config.posting_frequency} per day.
     topic: string,
     contentPillar: string,
     scheduleAt?: Date
-  ): Promise<{ platform: string; content: string; postId?: string; scheduled?: boolean }> {
+  ): Promise<{ platform: string; content: string; postId?: string; scheduled?: boolean; imageUrl?: string }> {
     // 1. Generate content
     const raw = await this.callClaude(
       this.generatePrompt(config, { platform, topic, content_pillar: contentPillar }),
@@ -177,9 +178,14 @@ Each week is an array of post objects. Plan ${config.posting_frequency} per day.
       ? `${postText}\n\n${hashtags.map(h => h.startsWith('#') ? h : `#${h}`).join(' ')}`
       : postText
 
+    // 2. Generate image from the AI-produced image_prompt (non-blocking — null if FAL_API_KEY not set)
+    const imageUrl = parsed.image_prompt
+      ? await imageService.generateImage(parsed.image_prompt, platform) ?? undefined
+      : undefined
+
     const postAt = scheduleAt || new Date()
 
-    // 2. Route to the correct posting method
+    // 3. Route to the correct posting method
     switch (platform) {
       case 'instagram':
         if (config.instagram_user_id && config.meta_access_token) {
@@ -187,9 +193,10 @@ Each week is an array of post objects. Plan ${config.posting_frequency} per day.
             igUserId: config.instagram_user_id,
             accessToken: config.meta_access_token,
             caption: fullText,
+            imageUrl,
             scheduledTime: scheduleAt
           })
-          return { platform, content: fullText, postId: igResult.id }
+          return { platform, content: fullText, postId: igResult.id, imageUrl }
         }
         break
 
@@ -199,9 +206,10 @@ Each week is an array of post objects. Plan ${config.posting_frequency} per day.
             pageId: config.meta_page_id,
             message: fullText,
             accessToken: config.meta_access_token,
+            imageUrl,
             scheduledTime: scheduleAt
           })
-          return { platform, content: fullText, postId: fbResult.id }
+          return { platform, content: fullText, postId: fbResult.id, imageUrl }
         }
         break
 
@@ -224,17 +232,19 @@ Each week is an array of post objects. Plan ${config.posting_frequency} per day.
         content: fullText,
         platforms: [platform],
         scheduledTime: postAt,
-        bufferToken: config.buffer_token
+        bufferToken: config.buffer_token,
+        imageUrl
       })
       return {
         platform,
         content: fullText,
         postId: results[0]?.id,
-        scheduled: true
+        scheduled: true,
+        imageUrl
       }
     }
 
-    return { platform, content: fullText }
+    return { platform, content: fullText, imageUrl }
   }
 
   async deploy(clientId: string, config: SocialMediaAgentConfig): Promise<{ id: string; n8nWorkflowId?: string }> {

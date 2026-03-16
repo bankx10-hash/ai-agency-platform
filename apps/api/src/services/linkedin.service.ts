@@ -7,11 +7,6 @@ interface PhantombusterAgent {
   status: string
 }
 
-interface SearchProspectsResult {
-  containerId: string
-  prospects: LinkedInProspect[]
-}
-
 interface LinkedInProspect {
   profileUrl: string
   firstName: string
@@ -22,31 +17,56 @@ interface LinkedInProspect {
   connectionDegree?: string
 }
 
-interface ContainerResult {
-  containerId: string
-  status: string
-  output: LinkedInProspect[]
-  error?: string
+export interface ProspectSearchParams {
+  titleKeyword?: string
+  company?: string
+  location?: string
+  limit?: number
 }
 
 export class LinkedInService {
-  private client: AxiosInstance
+  private apollo: AxiosInstance
+  private phantombuster: AxiosInstance
 
   constructor() {
-    const apiKey = process.env.PHANTOMBUSTER_API_KEY
-    if (!apiKey) {
-      logger.warn('PHANTOMBUSTER_API_KEY not set — LinkedIn automation features will be unavailable')
+    const apolloKey = process.env.APOLLO_API_KEY
+    if (!apolloKey) {
+      logger.warn('APOLLO_API_KEY not set — LinkedIn prospect search will be unavailable')
     }
 
-    this.client = axios.create({
-      baseURL: 'https://api.phantombuster.com/api/v2',
+    const phantombusterKey = process.env.PHANTOMBUSTER_API_KEY
+    if (!phantombusterKey) {
+      logger.warn('PHANTOMBUSTER_API_KEY not set — LinkedIn connection/messaging will be unavailable')
+    }
+
+    this.apollo = axios.create({
+      baseURL: 'https://api.apollo.io/v1',
       headers: {
-        'X-Phantombuster-Key': apiKey || 'not-configured',
+        'X-Api-Key': apolloKey || 'not-configured',
         'Content-Type': 'application/json'
       }
     })
 
-    this.client.interceptors.response.use(
+    this.apollo.interceptors.response.use(
+      (response) => response,
+      (error) => {
+        logger.error('Apollo API error', {
+          status: error.response?.status,
+          data: error.response?.data
+        })
+        throw error
+      }
+    )
+
+    this.phantombuster = axios.create({
+      baseURL: 'https://api.phantombuster.com/api/v2',
+      headers: {
+        'X-Phantombuster-Key': phantombusterKey || 'not-configured',
+        'Content-Type': 'application/json'
+      }
+    })
+
+    this.phantombuster.interceptors.response.use(
       (response) => response,
       (error) => {
         logger.error('Phantombuster API error', {
@@ -58,53 +78,39 @@ export class LinkedInService {
     )
   }
 
-  async searchProspects(
-    agentId: string,
-    searchUrl: string,
-    limit: number = 50
-  ): Promise<SearchProspectsResult> {
-    const launchResponse = await this.client.post(`/agents/${agentId}/launch`, {
-      argument: {
-        searchUrl,
-        numberOfProfiles: limit,
-        scraperSettings: {
-          maxResults: limit
-        }
-      }
-    })
+  async searchProspects(params: ProspectSearchParams): Promise<LinkedInProspect[]> {
+    const limit = params.limit ?? 50
+    const collected: any[] = []
+    let page = 1
 
-    const containerId = launchResponse.data.containerId
+    do {
+      const response = await this.apollo.post('/mixed_people/search', {
+        person_titles: params.titleKeyword ? [params.titleKeyword] : undefined,
+        organization_names: params.company ? [params.company] : undefined,
+        person_locations: params.location ? [params.location] : undefined,
+        per_page: 25,
+        page
+      })
 
-    logger.info('Phantombuster LinkedIn search launched', { agentId, containerId, searchUrl })
+      const people: any[] = response.data.people || []
+      collected.push(...people)
+      page++
 
-    const prospects = await this.pollForResults(containerId)
+      if (people.length < 25) break
+    } while (collected.length < limit)
 
-    return {
-      containerId,
-      prospects
-    }
-  }
+    const prospects = collected.slice(0, limit)
 
-  private async pollForResults(
-    containerId: string,
-    maxAttempts: number = 30
-  ): Promise<LinkedInProspect[]> {
-    for (let i = 0; i < maxAttempts; i++) {
-      await new Promise(resolve => setTimeout(resolve, 10000))
+    logger.info('Apollo LinkedIn search completed', { count: prospects.length })
 
-      const result = await this.getResults(containerId)
-
-      if (result.status === 'finished') {
-        return result.output
-      }
-
-      if (result.status === 'error') {
-        throw new Error(`Phantombuster container failed: ${result.error}`)
-      }
-    }
-
-    logger.warn('Phantombuster container did not finish in time', { containerId })
-    return []
+    return prospects.map((p) => ({
+      profileUrl: p.linkedin_url || '',
+      firstName: p.first_name || '',
+      lastName: p.last_name || '',
+      headline: p.headline,
+      company: p.organization?.name,
+      location: p.city
+    }))
   }
 
   async sendConnectionRequest(
@@ -112,7 +118,7 @@ export class LinkedInService {
     profileUrl: string,
     message: string
   ): Promise<{ containerId: string }> {
-    const agentsResponse = await this.client.get('/agents')
+    const agentsResponse = await this.phantombuster.get('/agents')
     const agents: PhantombusterAgent[] = agentsResponse.data.agents || []
 
     const connectionAgent = agents.find(a => a.name.includes('LinkedIn Auto Connect'))
@@ -121,7 +127,7 @@ export class LinkedInService {
       throw new Error('LinkedIn Auto Connect agent not found in Phantombuster')
     }
 
-    const launchResponse = await this.client.post(`/agents/${connectionAgent.id}/launch`, {
+    const launchResponse = await this.phantombuster.post(`/agents/${connectionAgent.id}/launch`, {
       argument: {
         sessionCookie,
         spreadsheetUrl: profileUrl,
@@ -135,30 +141,13 @@ export class LinkedInService {
     return { containerId: launchResponse.data.containerId }
   }
 
-  async getResults(containerId: string): Promise<ContainerResult> {
-    const response = await this.client.get(`/containers/${containerId}`, {
-      params: {
-        mode: 'most-recent'
-      }
-    })
-
-    const container = response.data
-
-    return {
-      containerId,
-      status: container.status,
-      output: container.output ? JSON.parse(container.output) : [],
-      error: container.error
-    }
-  }
-
   async sendFollowUpMessage(
     sessionCookie: string,
     profileUrl: string,
     message: string,
     agentId: string
   ): Promise<void> {
-    await this.client.post(`/agents/${agentId}/launch`, {
+    await this.phantombuster.post(`/agents/${agentId}/launch`, {
       argument: {
         sessionCookie,
         profileUrl,

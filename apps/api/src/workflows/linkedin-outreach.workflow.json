@@ -21,33 +21,26 @@
     },
     {
       "id": "get-prospects",
-      "name": "Get Prospects via Phantombuster",
+      "name": "Get Prospects via ProxyCurl",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
       "position": [500, 300],
       "parameters": {
-        "method": "POST",
-        "url": "https://api.phantombuster.com/api/v2/agents/{{CLIENT_ID}}-linkedin/launch",
+        "method": "GET",
+        "url": "https://nubela.co/proxycurl/api/search/person",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "X-Phantombuster-Key", "value": "={{$env.PHANTOMBUSTER_API_KEY}}" }
+            { "name": "Authorization", "value": "=Bearer {{$env.PROXYCURL_API_KEY}}" }
           ]
         },
-        "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "{\"argument\":{\"searchUrl\":\"{{WEBHOOK_URL}}\",\"numberOfProfiles\":20}}"
-      }
-    },
-    {
-      "id": "wait-for-results",
-      "name": "Wait 60s",
-      "type": "n8n-nodes-base.wait",
-      "typeVersion": 1,
-      "position": [750, 300],
-      "parameters": {
-        "unit": "seconds",
-        "amount": 60
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            { "name": "headline_keyword", "value": "{{SEARCH_KEYWORDS}}" },
+            { "name": "page_size", "value": "10" }
+          ]
+        }
       }
     },
     {
@@ -55,7 +48,7 @@
       "name": "Claude - Personalise Message",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1000, 300],
+      "position": [750, 300],
       "parameters": {
         "method": "POST",
         "url": "https://api.anthropic.com/v1/messages",
@@ -77,7 +70,7 @@
       "name": "Log Activity to GHL",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1250, 300],
+      "position": [1000, 300],
       "parameters": {
         "method": "POST",
         "url": "={{$env.GHL_BASE_URL}}/contacts",
@@ -130,12 +123,9 @@
   ],
   "connections": {
     "Daily Schedule": {
-      "main": [[{ "node": "Get Prospects via Phantombuster", "type": "main", "index": 0 }]]
+      "main": [[{ "node": "Get Prospects via ProxyCurl", "type": "main", "index": 0 }]]
     },
-    "Get Prospects via Phantombuster": {
-      "main": [[{ "node": "Wait 60s", "type": "main", "index": 0 }]]
-    },
-    "Wait 60s": {
+    "Get Prospects via ProxyCurl": {
       "main": [[{ "node": "Claude - Personalise Message", "type": "main", "index": 0 }]]
     },
     "Claude - Personalise Message": {

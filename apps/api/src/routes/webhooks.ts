@@ -3,9 +3,8 @@ import { PrismaClient } from '@prisma/client'
 import Stripe from 'stripe'
 import { stripeService } from '../services/stripe.service'
 import { n8nService } from '../services/n8n.service'
-import { onboardingQueue } from '../queue/onboarding.queue'
 import { AgentStatus } from '../../../packages/shared/types/agent.types'
-import { Plan } from '../../../packages/shared/types/client.types'
+import { Plan, ClientStatus } from '../../../packages/shared/types/client.types'
 import { logger } from '../utils/logger'
 
 const router = Router()
@@ -50,21 +49,14 @@ router.post(
               data: {
                 stripeSubId: subscription.id,
                 plan: plan as unknown as Plan,
-                status: 'ACTIVE'
+                status: ClientStatus.ACTIVE
               }
             })
           }
 
-          await onboardingQueue.add(
-            { clientId },
-            {
-              attempts: 3,
-              backoff: { type: 'exponential', delay: 5000 },
-              jobId: `onboarding-${clientId}`
-            }
-          )
-
-          logger.info('Stripe checkout completed, onboarding queued', { clientId })
+          // Onboarding is triggered by the portal after the client completes Step 2
+          // (connect tools, business description, ICP). Do not queue here.
+          logger.info('Stripe checkout completed, plan activated', { clientId })
           break
         }
 
@@ -74,7 +66,7 @@ router.post(
 
           await prisma.client.updateMany({
             where: { stripeCustomerId: customerId },
-            data: { status: 'ACTIVE' }
+            data: { status: ClientStatus.ACTIVE }
           })
 
           logger.info('Payment succeeded', { customerId })
@@ -111,7 +103,7 @@ router.post(
 
             await prisma.client.update({
               where: { id: client.id },
-              data: { status: 'CANCELLED' }
+              data: { status: ClientStatus.CANCELLED }
             })
 
             logger.info('Subscription cancelled — all agents paused', { clientId: client.id })

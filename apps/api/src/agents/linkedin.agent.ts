@@ -4,7 +4,7 @@ import { n8nService } from '../services/n8n.service'
 import { logger } from '../utils/logger'
 
 export interface LinkedInAgentConfig {
-  search_url: string
+  search_keywords: string
   connection_message_template: string
   followup_sequences: Array<{ day: number; message: string }>
   daily_limit: number
@@ -59,7 +59,7 @@ Generate only the message text, nothing else.`
         clientId,
         locationId: config.locationId,
         agentPrompt: connectionPrompt,
-        webhookUrl: `${process.env.N8N_BASE_URL}/webhook/linkedin-${clientId}`,
+        searchKeywords: config.search_keywords,
         businessName: config.businessName
       })
     } catch (error) {

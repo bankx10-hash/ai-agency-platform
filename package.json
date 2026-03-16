@@ -6,7 +6,7 @@
     "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently \"npm run dev --workspace=apps/api\" \"npm run dev --workspace=apps/portal\"",
+    "dev": "cross-env NODE_OPTIONS=--max-old-space-size=4096 concurrently \"npm --workspace=apps/api run dev\" \"npm --workspace=apps/portal run dev\"",
     "build": "npm run build --workspace=packages/shared && npm run build --workspace=apps/api && npm run build --workspace=apps/portal",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",

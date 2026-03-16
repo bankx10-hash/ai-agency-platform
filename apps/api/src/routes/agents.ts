@@ -119,10 +119,10 @@ router.patch('/:deploymentId/config', authMiddleware, async (req: AuthRequest, r
     const agent = createAgent(deployment.agentType as AgentType)
     const newPrompt = agent.generatePrompt(newConfig)
 
-    if (deployment.blandAgentId) {
+    if (deployment.retellAgentId) {
       try {
-        await voiceService.updateAgentPrompt(deployment.blandAgentId, newPrompt)
-        logger.info('Voice agent prompt updated', { deploymentId, blandAgentId: deployment.blandAgentId })
+        await voiceService.updateAgentPrompt(deployment.retellAgentId, newPrompt)
+        logger.info('Voice agent prompt updated', { deploymentId, retellAgentId: deployment.retellAgentId })
       } catch (error) {
         logger.warn('Failed to update voice agent prompt', { deploymentId, error })
       }

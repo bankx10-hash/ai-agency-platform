@@ -16,7 +16,7 @@ A multi-tenant SaaS platform where clients subscribe and get AI agents automatic
 | CRM | GoHighLevel (GHL) API v2 |
 | Billing | Stripe subscriptions + webhooks |
 | Voice | Bland.ai (inbound + outbound calls) |
-| LinkedIn | Phantombuster + LinkedIn API |
+| LinkedIn | ProxyCurl (prospect search) + Phantombuster (connection requests + messaging) |
 | Social Media | Meta Graph API + Buffer API |
 | Email | Gmail OAuth2 + SMTP (Nodemailer) |
 | Client Portal | Next.js 14 (App Router) |
@@ -99,8 +99,10 @@ Stripe price IDs live in env vars (`STRIPE_STARTER_PRICE_ID`, etc.). When a subs
 | `stripe.service.ts` | Subscription lifecycle, webhook signature verification |
 | `voice.service.ts` | Bland.ai — provision phone numbers, create inbound/outbound agents, launch calls, fetch transcripts |
 | `email.service.ts` | Gmail OAuth2 flow + SMTP sending via Nodemailer |
-| `linkedin.service.ts` | Phantombuster — search, connection requests, follow-up sequences |
+| `linkedin.service.ts` | ProxyCurl — prospect search; Phantombuster — connection requests + follow-up sequences |
+| `ads.service.ts` | Meta Ads insights/pause/create + Google Ads insights/pause — called directly by Advertising Agent |
 | `social.service.ts` | Buffer scheduling + Meta Graph API posting |
+| `image.service.ts` | fal.ai FLUX image generation — called by Social Media Agent with Claude's `image_prompt` output, platform-aware sizing |
 | `encrypt.ts` | AES-256 encrypt/decrypt for `ClientCredential.credentials` |
 | `onboarding.service.ts` | **Master orchestrator** — chains all services post-payment: GHL sub-account → credentials → deploy agents → connect email → assign phone numbers → send welcome email |
 
@@ -111,9 +113,9 @@ All agents extend `base.agent.ts`. Each has a typed `Config` interface, `deploy(
 | Agent | Trigger | Key config fields |
 |-------|---------|-------------------|
 | `lead-generation` | Schedule (2h) + form webhooks | `icp_description`, `lead_sources[]`, `pipeline_id`, `high_score_threshold` |
-| `linkedin` | Daily schedule | `search_url`, `connection_message_template`, `followup_sequences[]`, `daily_limit` |
+| `linkedin` | Daily schedule | `search_keywords`, `connection_message_template`, `followup_sequences[]`, `daily_limit` |
 | `social-media` | Schedule + brief webhook | `business_description`, `platforms[]`, `content_pillars[]`, `buffer_token` |
-| `advertising` | Daily + budget webhooks | `meta_ad_account_id`, `target_roas`, `daily_budget_limit` |
+| `advertising` | Daily + budget webhooks | `meta_ad_account_id`, `meta_access_token`, `meta_page_id`, `meta_default_adset_id`, `ad_link_url`, `google_ads_customer_id`, `google_refresh_token`, `target_roas`, `daily_budget_limit` |
 | `appointment-setter` | GHL webhook (lead score > 70) | `followup_sequence[]`, `calendar_id`, `objection_handlers{}`, `booking_link` |
 | `voice-inbound` | Inbound call (Bland.ai) | `greeting_script`, `faq_knowledge_base`, `escalation_number`, `calendar_id` |
 | `voice-outbound` | Scheduled call list from GHL | `call_script`, `objection_handlers{}`, `max_daily_calls`, `call_window_hours` |

@@ -1,8 +1,9 @@
-import { PrismaClient, Prisma } from '@prisma/client'
-import { ghlService } from './ghl.service'
+import { PrismaClient, Prisma, CrmType } from '@prisma/client'
 import { n8nService } from './n8n.service'
 import { voiceService } from './voice.service'
 import { emailService } from './email.service'
+import { crmService } from './crm/crm.service'
+import { GHLProvider } from './crm/providers/ghl.provider'
 import { encryptJSON } from '../utils/encrypt'
 import { logger } from '../utils/logger'
 import { AgentType, AgentStatus, PLANS } from '../../../packages/shared/types/agent.types'
@@ -24,13 +25,16 @@ export class OnboardingService {
       throw new Error(`Client not found: ${clientId}`)
     }
 
-    await this.updateOnboardingStep(clientId, 1, { message: 'Creating GHL workspace' })
+    await this.updateOnboardingStep(clientId, 1, { message: `Setting up ${client.crmType} workspace` })
 
-    const { locationId } = await this.createGHLSubAccount(client)
+    const { locationId } = await this.provisionCRMAccount(client)
 
     await this.updateOnboardingStep(clientId, 2, { ghlCreated: true })
 
-    await this.deployAgentsByPlan(clientId, client.plan as Plan, locationId, client)
+    await this.deployAgentsByPlan(clientId, client.plan as Plan, locationId, client, {
+      businessDescription: client.businessDescription ?? undefined,
+      icpDescription: client.icpDescription ?? undefined
+    })
 
     await this.updateOnboardingStep(clientId, 3, { agentsDeployed: true })
 
@@ -45,32 +49,40 @@ export class OnboardingService {
     logger.info('Onboarding completed', { clientId })
   }
 
-  private async createGHLSubAccount(client: {
+  private async provisionCRMAccount(client: {
     id: string
     businessName: string
     email: string
     phone?: string | null
+    crmType: CrmType
   }): Promise<{ locationId: string }> {
     try {
-      const { locationId } = await ghlService.createSubAccount({
-        name: client.businessName,
-        email: client.email,
-        phone: client.phone || undefined
-      })
+      if (client.crmType === CrmType.GHL) {
+        const ghl = new GHLProvider({ locationId: '', apiKey: process.env.GHL_API_KEY })
+        const { locationId } = await ghl.createSubAccount({
+          name: client.businessName,
+          email: client.email,
+          phone: client.phone || undefined
+        })
 
-      await prisma.client.update({
-        where: { id: client.id },
-        data: {
-          ghlLocationId: locationId,
-          ghlSubAccountId: locationId
-        }
-      })
+        await prisma.client.update({
+          where: { id: client.id },
+          data: { ghlLocationId: locationId, ghlSubAccountId: locationId, crmAccountId: locationId }
+        })
 
-      logger.info('GHL sub-account created and saved', { clientId: client.id, locationId })
+        logger.info('GHL sub-account created', { clientId: client.id, locationId })
+        return { locationId }
+      }
 
+      // For HubSpot, Salesforce, Zoho — client connects their existing account during onboarding
+      // crmAccountId is set when they connect credentials in onboarding step 2
+      const record = await prisma.client.findUnique({ where: { id: client.id }, select: { crmAccountId: true } })
+      const locationId = record?.crmAccountId || client.id
+
+      logger.info('CRM account linked', { clientId: client.id, crmType: client.crmType, locationId })
       return { locationId }
     } catch (error) {
-      logger.error('Failed to create GHL sub-account', { clientId: client.id, error })
+      logger.error('Failed to provision CRM account', { clientId: client.id, crmType: client.crmType, error })
       throw error
     }
   }
@@ -83,7 +95,11 @@ export class OnboardingService {
       id: string
       businessName: string
       email: string
-    }
+    },
+    clientData: {
+      businessDescription?: string
+      icpDescription?: string
+    } = {}
   ): Promise<void> {
     const planConfig = PLANS[plan]
     const agentTypes = planConfig.agents as AgentType[]
@@ -99,7 +115,13 @@ export class OnboardingService {
         }
 
         const agent = new AgentClass()
-        const defaultConfig = this.getDefaultAgentConfig(agentType, locationId, client.businessName)
+        const defaultConfig = this.getDefaultAgentConfig(
+          agentType,
+          locationId,
+          client.businessName,
+          clientData.businessDescription,
+          clientData.icpDescription
+        )
 
         await agent.deploy(clientId, defaultConfig)
 
@@ -122,19 +144,24 @@ export class OnboardingService {
   private getDefaultAgentConfig(
     agentType: AgentType,
     locationId: string,
-    businessName: string
+    businessName: string,
+    businessDescription?: string,
+    icpDescription?: string
   ): Record<string, unknown> {
     const baseConfig = {
       locationId,
       businessName
     }
 
+    const resolvedBusinessDescription = businessDescription || `${businessName} provides excellent products and services`
+    const resolvedIcpDescription = icpDescription || 'Business owners looking to grow their business'
+
     const configs: Record<AgentType, Record<string, unknown>> = {
       [AgentType.LEAD_GENERATION]: {
         ...baseConfig,
-        icp_description: 'Business owners looking to grow their business',
+        icp_description: resolvedIcpDescription,
         lead_sources: ['website', 'facebook'],
-        scoring_prompt: 'Score this lead 0-100 based on how well they match our ICP',
+        scoring_prompt: `Score this lead 0-100 based on how well they match our ICP: ${resolvedIcpDescription}`,
         pipeline_id: '',
         high_score_threshold: 70
       },
@@ -152,7 +179,7 @@ export class OnboardingService {
       },
       [AgentType.SOCIAL_MEDIA]: {
         ...baseConfig,
-        business_description: `${businessName} provides excellent products and services`,
+        business_description: resolvedBusinessDescription,
         tone: 'professional',
         posting_frequency: 'daily',
         platforms: ['linkedin', 'facebook'],
@@ -185,7 +212,7 @@ export class OnboardingService {
       },
       [AgentType.VOICE_INBOUND]: {
         ...baseConfig,
-        greeting_script: `Thank you for calling ${businessName}. How can I help you today?`,
+        greeting_script: `Thank you for calling ${businessName}. How can I help you today? ${resolvedBusinessDescription}`,
         qualification_questions: [
           'What brings you in today?',
           'Have you worked with us before?',
@@ -198,7 +225,7 @@ export class OnboardingService {
       },
       [AgentType.VOICE_OUTBOUND]: {
         ...baseConfig,
-        call_script: `Hi, this is an AI assistant calling from ${businessName}. I am reaching out because you recently expressed interest in our services. Do you have a quick moment to chat?`,
+        call_script: `Hi, this is an AI assistant calling from ${businessName}. ${resolvedBusinessDescription}. I am reaching out because you recently expressed interest in our services. Do you have a quick moment to chat?`,
         objection_handlers: {
           'not interested': 'I completely understand! Would it be okay if I sent you some information via text?',
           'busy': 'Of course! When would be a better time to call back?',
@@ -211,8 +238,8 @@ export class OnboardingService {
       },
       [AgentType.VOICE_CLOSER]: {
         ...baseConfig,
-        closing_script_template: `Hi {{firstName}}, this is from ${businessName}. I am calling to follow up on our conversation about moving forward with our services.`,
-        offer_details: `${businessName} subscription services`,
+        closing_script_template: `Hi {{firstName}}, this is from ${businessName}. I am calling to follow up on our conversation about moving forward. ${resolvedBusinessDescription}`,
+        offer_details: resolvedBusinessDescription,
         payment_link: '',
         contract_link: '',
         objection_scripts: {
@@ -268,11 +295,13 @@ export class OnboardingService {
       try {
         const config = agent.config as Record<string, unknown>
 
+        const twilioPhoneNumber = await voiceService.provisionNumber()
+
         const { agentId, phoneNumber } = await voiceService.createInboundAgent({
           prompt: config.greeting_script as string || `Thank you for calling ${businessName}. How can I help?`,
           voice: config.voice_id as string || 'eleven_labs_english_male_adam',
           firstSentence: `Thank you for calling ${businessName}. How can I help you today?`,
-          twilioPhoneNumber: config.twilio_phone_number as string,
+          twilioPhoneNumber,
           clientId,
           businessName,
           transferNumber: config.escalation_number as string || undefined

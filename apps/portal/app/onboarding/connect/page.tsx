@@ -80,6 +80,7 @@ export default function ConnectPage() {
     try {
       const clientId = getClientId()
       const token = getToken()
+      const headers = { Authorization: `Bearer ${token}` }
 
       if (form.crmType !== 'none' && form.crmApiKey) {
         await handleConnectCRM()
@@ -89,8 +90,22 @@ export default function ConnectPage() {
         await axios.post(
           `${API_URL}/onboarding/${clientId}/connect-linkedin`,
           { sessionCookie: form.linkedinCookie },
-          { headers: { Authorization: `Bearer ${token}` } }
-        ).catch(() => {})
+          { headers }
+        )
+      }
+
+      if (form.metaAccessToken || form.metaPageId || form.bufferToken) {
+        await axios.post(
+          `${API_URL}/onboarding/${clientId}/connect-social`,
+          {
+            metaAccessToken: form.metaAccessToken || undefined,
+            metaPageId: form.metaPageId || undefined,
+            instagramUserId: form.instagramUserId || undefined,
+            bufferToken: form.bufferToken || undefined,
+            platforms: form.platforms.length > 0 ? form.platforms : undefined
+          },
+          { headers }
+        )
       }
 
       await axios.patch(
@@ -99,13 +114,13 @@ export default function ConnectPage() {
           businessDescription: form.businessDescription,
           icpDescription: form.icpDescription
         },
-        { headers: { Authorization: `Bearer ${token}` } }
-      ).catch(() => {})
+        { headers }
+      )
 
       await axios.post(
         `${API_URL}/onboarding/start`,
         { clientId },
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers }
       )
 
       router.push('/onboarding/complete')

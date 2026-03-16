@@ -25,6 +25,18 @@ const connectGmailSchema = z.object({
   code: z.string()
 })
 
+const connectLinkedInSchema = z.object({
+  sessionCookie: z.string()
+})
+
+const connectSocialSchema = z.object({
+  metaAccessToken: z.string().optional(),
+  metaPageId: z.string().optional(),
+  instagramUserId: z.string().optional(),
+  bufferToken: z.string().optional(),
+  platforms: z.array(z.string()).optional()
+})
+
 router.post('/start', async (req: Request, res: Response): Promise<void> => {
   try {
     const parsed = startOnboardingSchema.safeParse(req.body)
@@ -241,6 +253,115 @@ router.get('/gmail/auth-url', (req: Request, res: Response): void => {
     res.json({ url: authUrl })
   } catch (error) {
     logger.error('Error generating Gmail auth URL', { error })
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+router.post('/:clientId/connect-linkedin', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { clientId } = req.params
+
+    if (req.clientId !== clientId) {
+      res.status(403).json({ error: 'Forbidden' })
+      return
+    }
+
+    const parsed = connectLinkedInSchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Invalid request body', details: parsed.error.errors })
+      return
+    }
+
+    const encryptedCreds = encryptJSON({ sessionCookie: parsed.data.sessionCookie })
+
+    await prisma.clientCredential.upsert({
+      where: { id: `linkedin-${clientId}` },
+      update: { credentials: encryptedCreds },
+      create: {
+        id: `linkedin-${clientId}`,
+        clientId,
+        service: 'linkedin',
+        credentials: encryptedCreds
+      }
+    })
+
+    logger.info('LinkedIn cookie saved', { clientId })
+
+    res.json({ message: 'LinkedIn connected successfully' })
+  } catch (error) {
+    logger.error('Error connecting LinkedIn', { error, clientId: req.params.clientId })
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+router.post('/:clientId/connect-social', authMiddleware, async (req: AuthRequest, res: Response): Promise<void> => {
+  try {
+    const { clientId } = req.params
+
+    if (req.clientId !== clientId) {
+      res.status(403).json({ error: 'Forbidden' })
+      return
+    }
+
+    const parsed = connectSocialSchema.safeParse(req.body)
+    if (!parsed.success) {
+      res.status(400).json({ error: 'Invalid request body', details: parsed.error.errors })
+      return
+    }
+
+    const { metaAccessToken, metaPageId, instagramUserId, bufferToken, platforms } = parsed.data
+
+    if (metaAccessToken || metaPageId || instagramUserId) {
+      const encryptedMeta = encryptJSON({
+        accessToken: metaAccessToken || '',
+        pageId: metaPageId || '',
+        instagramUserId: instagramUserId || ''
+      })
+
+      await prisma.clientCredential.upsert({
+        where: { id: `meta-${clientId}` },
+        update: { credentials: encryptedMeta },
+        create: {
+          id: `meta-${clientId}`,
+          clientId,
+          service: 'meta',
+          credentials: encryptedMeta
+        }
+      })
+    }
+
+    if (bufferToken) {
+      const encryptedBuffer = encryptJSON({ accessToken: bufferToken })
+
+      await prisma.clientCredential.upsert({
+        where: { id: `buffer-${clientId}` },
+        update: { credentials: encryptedBuffer },
+        create: {
+          id: `buffer-${clientId}`,
+          clientId,
+          service: 'buffer',
+          credentials: encryptedBuffer
+        }
+      })
+    }
+
+    if (platforms && platforms.length > 0) {
+      await prisma.onboarding.update({
+        where: { clientId },
+        data: {
+          data: {
+            socialConnected: true,
+            platforms
+          }
+        }
+      })
+    }
+
+    logger.info('Social credentials saved', { clientId, platforms })
+
+    res.json({ message: 'Social credentials saved successfully' })
+  } catch (error) {
+    logger.error('Error saving social credentials', { error, clientId: req.params.clientId })
     res.status(500).json({ error: 'Internal server error' })
   }
 })
