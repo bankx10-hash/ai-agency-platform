@@ -1,25 +1,24 @@
 FROM node:22-alpine
 RUN apk add --no-cache openssl
+
 WORKDIR /app
 
-# Copy monorepo root files
+# Copy monorepo root files first
+COPY package.json package-lock.json ./
 COPY tsconfig.base.json ./
 COPY prisma ./prisma/
 COPY packages ./packages/
+COPY apps/api ./apps/api/
 
-# Copy API package.json and install dependencies
-COPY apps/api/package.json ./apps/api/
-WORKDIR /app/apps/api
-RUN npm install
+# Install dependencies for the API workspace
+RUN npm install --workspace=apps/api --include-workspace-root
 
 # Generate Prisma client
-WORKDIR /app
 RUN npx prisma generate
 
-# Copy API source and build
-COPY apps/api ./apps/api/
+# Build the API
 WORKDIR /app/apps/api
 RUN npm run build
 
 EXPOSE 3000
-CMD ["npm", "run", "start"]
+CMD ["node", "dist/index.js"]
