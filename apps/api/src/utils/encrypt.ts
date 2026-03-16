@@ -7,7 +7,7 @@ const SALT_LENGTH = 32
 const KEY_LENGTH = 32
 
 function deriveKey(salt: Buffer): Buffer {
-  const encryptionKey = process.env.ENCRYPTION_KEY
+  const encryptionKey = process.env['ENCRYPTION_KEY']
   if (!encryptionKey) {
     throw new Error('ENCRYPTION_KEY environment variable is not set')
   }

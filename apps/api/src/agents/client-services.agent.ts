@@ -94,7 +94,7 @@ Always be warm, proactive, and solutions-focused. You genuinely care about clien
         clientId,
         locationId: config.locationId,
         agentPrompt: clientSuccessPrompt,
-        webhookUrl: `${process.env.N8N_BASE_URL}/webhook/client-services-${clientId}`,
+        webhookUrl: `${process.env['N8N_BASE_URL']}/webhook/client-services-${clientId}`,
         businessName: config.businessName
       })
     } catch (error) {

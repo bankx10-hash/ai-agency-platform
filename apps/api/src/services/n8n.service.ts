@@ -8,8 +8,8 @@ export class N8NService {
   private client: AxiosInstance
 
   constructor() {
-    const baseURL = process.env.N8N_BASE_URL || 'http://localhost:5678'
-    const apiKey = process.env.N8N_API_KEY
+    const baseURL = process.env['N8N_BASE_URL'] || 'http://localhost:5678'
+    const apiKey = process.env['N8N_API_KEY']
 
     if (!apiKey) {
       logger.warn('N8N_API_KEY not set — workflow automation features will be unavailable')
@@ -98,7 +98,7 @@ export class N8NService {
     return {
       workflowId,
       active: true,
-      webhookUrl: `${process.env.N8N_BASE_URL}/webhook/${workflowId}`
+      webhookUrl: `${process.env['N8N_BASE_URL']}/webhook/${workflowId}`
     }
   }
 

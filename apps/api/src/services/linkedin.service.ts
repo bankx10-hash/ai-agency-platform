@@ -29,12 +29,12 @@ export class LinkedInService {
   private phantombuster: AxiosInstance
 
   constructor() {
-    const apolloKey = process.env.APOLLO_API_KEY
+    const apolloKey = process.env['APOLLO_API_KEY']
     if (!apolloKey) {
       logger.warn('APOLLO_API_KEY not set — LinkedIn prospect search will be unavailable')
     }
 
-    const phantombusterKey = process.env.PHANTOMBUSTER_API_KEY
+    const phantombusterKey = process.env['PHANTOMBUSTER_API_KEY']
     if (!phantombusterKey) {
       logger.warn('PHANTOMBUSTER_API_KEY not set — LinkedIn connection/messaging will be unavailable')
     }

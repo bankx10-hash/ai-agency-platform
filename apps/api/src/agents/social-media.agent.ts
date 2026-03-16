@@ -258,7 +258,7 @@ Each week is an array of post objects. Plan ${config.posting_frequency} per day.
         clientId,
         locationId: config.locationId,
         agentPrompt: contentCalendar,
-        webhookUrl: `${process.env.API_BASE_URL}/webhooks/social/${clientId}`,
+        webhookUrl: `${process.env['API_BASE_URL']}/webhooks/social/${clientId}`,
         businessName: config.businessName,
         platforms: config.platforms.join(',')
       })

@@ -38,7 +38,7 @@ export const logger = {
     writeLog(formatLog('error', message, data))
   },
   debug: (message: string, data?: unknown) => {
-    if (process.env.NODE_ENV !== 'production') {
+    if (process.env['NODE_ENV'] !== 'production') {
       writeLog(formatLog('debug', message, data))
     }
   }

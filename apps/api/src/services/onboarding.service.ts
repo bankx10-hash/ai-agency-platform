@@ -58,7 +58,7 @@ export class OnboardingService {
   }): Promise<{ locationId: string }> {
     try {
       if (client.crmType === CrmType.GHL) {
-        const ghl = new GHLProvider({ locationId: '', apiKey: process.env.GHL_API_KEY })
+        const ghl = new GHLProvider({ locationId: '', apiKey: process.env['GHL_API_KEY'] })
         const { locationId } = await ghl.createSubAccount({
           name: client.businessName,
           email: client.email,
@@ -346,7 +346,7 @@ export class OnboardingService {
   }
 
   private async sendWelcomeEmail(email: string, businessName: string): Promise<void> {
-    const portalUrl = process.env.NEXTAUTH_URL || 'http://localhost:3000'
+    const portalUrl = process.env['NEXTAUTH_URL'] || 'http://localhost:3000'
 
     try {
       await emailService.sendWelcomeEmail(email, businessName, portalUrl)

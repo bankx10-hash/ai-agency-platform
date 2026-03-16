@@ -122,8 +122,8 @@ export class AdsService {
 
   async refreshGoogleToken(refreshToken: string): Promise<string> {
     const response = await axios.post('https://oauth2.googleapis.com/token', {
-      client_id: process.env.GOOGLE_ADS_CLIENT_ID,
-      client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET,
+      client_id: process.env['GOOGLE_ADS_CLIENT_ID'],
+      client_secret: process.env['GOOGLE_ADS_CLIENT_SECRET'],
       refresh_token: refreshToken,
       grant_type: 'refresh_token'
     })
@@ -152,7 +152,7 @@ export class AdsService {
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          'developer-token': process.env.GOOGLE_ADS_DEVELOPER_TOKEN || '',
+          'developer-token': process.env['GOOGLE_ADS_DEVELOPER_TOKEN'] || '',
           'Content-Type': 'application/json'
         }
       }
@@ -187,7 +187,7 @@ export class AdsService {
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
-          'developer-token': process.env.GOOGLE_ADS_DEVELOPER_TOKEN || '',
+          'developer-token': process.env['GOOGLE_ADS_DEVELOPER_TOKEN'] || '',
           'Content-Type': 'application/json'
         }
       }

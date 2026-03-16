@@ -5,7 +5,7 @@ import { AgentType, AgentStatus } from '../../../packages/shared/types/agent.typ
 import { logger } from '../utils/logger'
 
 const prisma = new PrismaClient()
-const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379'
+const REDIS_URL = process.env['REDIS_URL'] || 'redis://localhost:6379'
 
 interface AgentDeployJobData {
   clientId: string

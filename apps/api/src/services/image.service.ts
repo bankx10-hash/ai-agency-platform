@@ -15,7 +15,7 @@ export class ImageService {
   private readonly baseURL = 'https://fal.run/fal-ai/flux/schnell'
 
   async generateImage(prompt: string, platform: SupportedPlatform = 'instagram'): Promise<string | null> {
-    const apiKey = process.env.FAL_API_KEY
+    const apiKey = process.env['FAL_API_KEY']
     if (!apiKey) {
       logger.warn('FAL_API_KEY not set — skipping image generation')
       return null

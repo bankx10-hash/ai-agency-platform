@@ -66,7 +66,7 @@ ${config.scoring_prompt || ''}`
         clientId,
         locationId: config.locationId,
         agentPrompt,
-        webhookUrl: `${process.env.N8N_BASE_URL}/webhook/lead-gen-${clientId}`,
+        webhookUrl: `${process.env['N8N_BASE_URL']}/webhook/lead-gen-${clientId}`,
         pipelineId: config.pipeline_id,
         businessName: config.businessName,
         icpDescription: config.icp_description

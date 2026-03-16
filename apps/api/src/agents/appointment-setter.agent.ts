@@ -85,7 +85,7 @@ Respond with JSON:
         clientId,
         locationId: config.locationId,
         agentPrompt: followUpSequencePrompt,
-        webhookUrl: `${process.env.N8N_BASE_URL}/webhook/appointments-${clientId}`,
+        webhookUrl: `${process.env['N8N_BASE_URL']}/webhook/appointments-${clientId}`,
         calendarId: config.calendar_id,
         businessName: config.businessName
       })

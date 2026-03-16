@@ -57,7 +57,7 @@ export class VoiceService {
   private client: AxiosInstance
 
   constructor() {
-    const apiKey = process.env.RETELL_API_KEY
+    const apiKey = process.env['RETELL_API_KEY']
     if (!apiKey) {
       logger.warn('RETELL_API_KEY not set — voice agent features will be unavailable')
     }
@@ -163,7 +163,7 @@ export class VoiceService {
     contactData: CallData,
     fromNumber?: string
   ): Promise<{ callId: string }> {
-    const from = fromNumber || process.env.TWILIO_OUTBOUND_NUMBER
+    const from = fromNumber || process.env['TWILIO_OUTBOUND_NUMBER']
     if (!from) throw new Error('No outbound number provided and TWILIO_OUTBOUND_NUMBER not set')
 
     const response = await this.client.post('/create-call', {
@@ -198,9 +198,9 @@ export class VoiceService {
   }
 
   async provisionNumber(areaCode?: string): Promise<string> {
-    const accountSid = process.env.TWILIO_ACCOUNT_SID
-    const authToken = process.env.TWILIO_AUTH_TOKEN
-    const trunkSid = process.env.TWILIO_SIP_TRUNK_SID
+    const accountSid = process.env['TWILIO_ACCOUNT_SID']
+    const authToken = process.env['TWILIO_AUTH_TOKEN']
+    const trunkSid = process.env['TWILIO_SIP_TRUNK_SID']
 
     if (!accountSid || !authToken || !trunkSid) {
       throw new Error('TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_SIP_TRUNK_SID must be set')

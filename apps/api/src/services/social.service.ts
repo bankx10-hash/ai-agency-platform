@@ -52,7 +52,7 @@ interface BufferProfile {
 }
 
 export class SocialService {
-  private metaBaseURL = process.env.META_GRAPH_API_URL || 'https://graph.facebook.com/v18.0'
+  private metaBaseURL = process.env['META_GRAPH_API_URL'] || 'https://graph.facebook.com/v18.0'
   private tiktokBaseURL = 'https://open.tiktokapis.com/v2'
 
   private getBufferClient(token: string): AxiosInstance {

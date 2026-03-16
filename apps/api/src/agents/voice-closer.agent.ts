@@ -112,7 +112,7 @@ Remember: Closing is about helping them make a decision that's right for them. B
         clientId,
         locationId: config.locationId,
         agentPrompt: closingScript,
-        webhookUrl: `${process.env.N8N_BASE_URL}/webhook/voice-closer-${clientId}`,
+        webhookUrl: `${process.env['N8N_BASE_URL']}/webhook/voice-closer-${clientId}`,
         businessName: config.businessName
       })
     } catch (error) {

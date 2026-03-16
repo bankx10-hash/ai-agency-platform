@@ -23,7 +23,7 @@ export class CRMService {
     if (crmType === CrmType.GHL) {
       return new GHLProvider({
         locationId: client.ghlLocationId || '',
-        apiKey: process.env.GHL_API_KEY
+        apiKey: process.env['GHL_API_KEY']
       })
     }
 

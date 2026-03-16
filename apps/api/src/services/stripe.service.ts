@@ -7,7 +7,7 @@ export class StripeService {
 
   private getStripe(): Stripe {
     if (!this.stripe) {
-      const secretKey = process.env.STRIPE_SECRET_KEY
+      const secretKey = process.env['STRIPE_SECRET_KEY']
       if (!secretKey) {
         throw new Error('STRIPE_SECRET_KEY environment variable is not set')
       }
@@ -19,7 +19,7 @@ export class StripeService {
   }
 
   constructor() {
-    if (!process.env.STRIPE_SECRET_KEY) {
+    if (!process.env['STRIPE_SECRET_KEY']) {
       logger.warn('STRIPE_SECRET_KEY not set — billing features will be unavailable')
     }
   }
@@ -98,7 +98,7 @@ export class StripeService {
   }
 
   constructWebhookEvent(payload: Buffer | string, sig: string): Stripe.Event {
-    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET
+    const webhookSecret = process.env['STRIPE_WEBHOOK_SECRET']
     if (!webhookSecret) {
       throw new Error('STRIPE_WEBHOOK_SECRET environment variable is not set')
     }
@@ -106,9 +106,9 @@ export class StripeService {
   }
 
   getPlanFromPriceId(priceId: string): Plan {
-    const starterPriceId = process.env.STRIPE_STARTER_PRICE_ID || 'price_starter'
-    const growthPriceId = process.env.STRIPE_GROWTH_PRICE_ID || 'price_growth'
-    const agencyPriceId = process.env.STRIPE_AGENCY_PRICE_ID || 'price_agency'
+    const starterPriceId = process.env['STRIPE_STARTER_PRICE_ID'] || 'price_starter'
+    const growthPriceId = process.env['STRIPE_GROWTH_PRICE_ID'] || 'price_growth'
+    const agencyPriceId = process.env['STRIPE_AGENCY_PRICE_ID'] || 'price_agency'
 
     if (priceId === starterPriceId) return Plan.STARTER
     if (priceId === growthPriceId) return Plan.GROWTH

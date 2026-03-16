@@ -28,7 +28,7 @@ export function authMiddleware(
 
   const token = authHeader.substring(7)
 
-  const jwtSecret = process.env.JWT_SECRET
+  const jwtSecret = process.env['JWT_SECRET']
   if (!jwtSecret) {
     logger.error('JWT_SECRET not configured')
     res.status(500).json({ error: 'Server configuration error' })
@@ -53,7 +53,7 @@ export function authMiddleware(
 }
 
 export function generateToken(clientId: string, email: string): string {
-  const jwtSecret = process.env.JWT_SECRET
+  const jwtSecret = process.env['JWT_SECRET']
   if (!jwtSecret) {
     throw new Error('JWT_SECRET not configured')
   }

@@ -80,7 +80,7 @@ Respond naturally as if in a real phone conversation.`
         clientId,
         businessName: config.businessName,
         transferNumber: config.escalation_number,
-        calendarWebhook: `${process.env.N8N_BASE_URL}/webhook/voice-calendar-${clientId}`,
+        calendarWebhook: `${process.env['N8N_BASE_URL']}/webhook/voice-calendar-${clientId}`,
         twilioPhoneNumber: config.twilio_phone_number
       })
 
@@ -99,7 +99,7 @@ Respond naturally as if in a real phone conversation.`
         clientId,
         locationId: config.locationId,
         agentPrompt: voicePrompt,
-        webhookUrl: `${process.env.N8N_BASE_URL}/webhook/voice-inbound-${clientId}`,
+        webhookUrl: `${process.env['N8N_BASE_URL']}/webhook/voice-inbound-${clientId}`,
         phoneNumber,
         calendarId: config.calendar_id,
         businessName: config.businessName

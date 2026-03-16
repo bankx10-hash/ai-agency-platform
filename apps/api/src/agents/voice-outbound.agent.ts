@@ -99,7 +99,7 @@ Always be respectful of the person's time. If they're busy, offer to call at a b
         clientId,
         locationId: config.locationId,
         agentPrompt: outboundScript,
-        webhookUrl: `${process.env.N8N_BASE_URL}/webhook/voice-outbound-${clientId}`,
+        webhookUrl: `${process.env['N8N_BASE_URL']}/webhook/voice-outbound-${clientId}`,
         businessName: config.businessName
       })
     } catch (error) {

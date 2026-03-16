@@ -18,8 +18,8 @@ interface SendEmailOptions {
 
 export class EmailService {
   private getOAuth2Client(redirectUri?: string) {
-    const clientId = process.env.GMAIL_CLIENT_ID
-    const clientSecret = process.env.GMAIL_CLIENT_SECRET
+    const clientId = process.env['GMAIL_CLIENT_ID']
+    const clientSecret = process.env['GMAIL_CLIENT_SECRET']
 
     if (!clientId || !clientSecret) {
       throw new Error('Gmail OAuth2 credentials not configured')
@@ -52,8 +52,8 @@ export class EmailService {
       auth: {
         type: 'OAuth2',
         user: credentials.email,
-        clientId: process.env.GMAIL_CLIENT_ID,
-        clientSecret: process.env.GMAIL_CLIENT_SECRET,
+        clientId: process.env['GMAIL_CLIENT_ID'],
+        clientSecret: process.env['GMAIL_CLIENT_SECRET'],
         refreshToken: credentials.refreshToken,
         accessToken: token || ''
       }
@@ -71,10 +71,10 @@ export class EmailService {
   }
 
   async sendSystemEmail(to: string, subject: string, html: string): Promise<void> {
-    const smtpUser = process.env.SMTP_USER
-    const smtpPass = process.env.SMTP_PASSWORD
-    const smtpHost = process.env.SMTP_HOST || 'smtp.gmail.com'
-    const smtpPort = parseInt(process.env.SMTP_PORT || '587')
+    const smtpUser = process.env['SMTP_USER']
+    const smtpPass = process.env['SMTP_PASSWORD']
+    const smtpHost = process.env['SMTP_HOST'] || 'smtp.gmail.com'
+    const smtpPort = parseInt(process.env['SMTP_PORT'] || '587')
 
     if (!smtpUser || !smtpPass) {
       logger.warn('SMTP credentials not configured, skipping email', { to, subject })
@@ -158,7 +158,7 @@ export class EmailService {
   }
 
   getGmailAuthUrl(): string {
-    const redirectUri = process.env.GMAIL_REDIRECT_URI || 'http://localhost:4000/onboarding/oauth/gmail/callback'
+    const redirectUri = process.env['GMAIL_REDIRECT_URI'] || 'http://localhost:4000/onboarding/oauth/gmail/callback'
     const oauth2Client = this.getOAuth2Client(redirectUri)
 
     return oauth2Client.generateAuthUrl({
@@ -177,7 +177,7 @@ export class EmailService {
     refreshToken: string
     email: string
   }> {
-    const redirectUri = process.env.GMAIL_REDIRECT_URI || 'http://localhost:4000/onboarding/oauth/gmail/callback'
+    const redirectUri = process.env['GMAIL_REDIRECT_URI'] || 'http://localhost:4000/onboarding/oauth/gmail/callback'
     const oauth2Client = this.getOAuth2Client(redirectUri)
 
     const { tokens } = await oauth2Client.getToken(code)

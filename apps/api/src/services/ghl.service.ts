@@ -50,9 +50,9 @@ export class GHLService {
   private agencyId: string
 
   constructor() {
-    const apiKey = process.env.GHL_API_KEY
-    const baseURL = process.env.GHL_BASE_URL || 'https://services.leadconnectorhq.com'
-    this.agencyId = process.env.GHL_AGENCY_ID || ''
+    const apiKey = process.env['GHL_API_KEY']
+    const baseURL = process.env['GHL_BASE_URL'] || 'https://services.leadconnectorhq.com'
+    this.agencyId = process.env['GHL_AGENCY_ID'] || ''
 
     if (!apiKey) {
       logger.warn('GHL_API_KEY not set — GoHighLevel features will be unavailable')

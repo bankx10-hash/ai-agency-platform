@@ -2,7 +2,7 @@ import Bull from 'bull'
 import { onboardingService } from '../services/onboarding.service'
 import { logger } from '../utils/logger'
 
-const REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379'
+const REDIS_URL = process.env['REDIS_URL'] || 'redis://localhost:6379'
 
 export const onboardingQueue = new Bull('onboarding', REDIS_URL, {
   defaultJobOptions: {

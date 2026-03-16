@@ -15,9 +15,9 @@ export class GHLProvider implements ICRMProvider {
     this.locationId = credentials.locationId
 
     this.client = axios.create({
-      baseURL: process.env.GHL_BASE_URL || 'https://services.leadconnectorhq.com',
+      baseURL: process.env['GHL_BASE_URL'] || 'https://services.leadconnectorhq.com',
       headers: {
-        'Authorization': `Bearer ${credentials.apiKey || process.env.GHL_API_KEY || 'not-configured'}`,
+        'Authorization': `Bearer ${credentials.apiKey || process.env['GHL_API_KEY'] || 'not-configured'}`,
         'Version': '2021-07-28',
         'Content-Type': 'application/json'
       }
@@ -116,7 +116,7 @@ export class GHLProvider implements ICRMProvider {
   }
 
   async createSubAccount(data: { name: string; email: string; phone?: string }): Promise<{ locationId: string }> {
-    const agencyId = process.env.GHL_AGENCY_ID
+    const agencyId = process.env['GHL_AGENCY_ID']
     const response = await this.client.post('/locations', {
       name: data.name,
       email: data.email,

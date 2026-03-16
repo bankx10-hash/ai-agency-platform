@@ -5,7 +5,7 @@ import { n8nService } from '../services/n8n.service'
 import { logger } from '../utils/logger'
 
 const prisma = new PrismaClient()
-const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+const anthropic = new Anthropic({ apiKey: process.env['ANTHROPIC_API_KEY'] })
 
 export abstract class BaseAgent {
   abstract agentType: AgentType
