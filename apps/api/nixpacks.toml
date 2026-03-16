@@ -1,0 +1,11 @@
+[phases.setup]
+nixPkgs = ["nodejs_22", "openssl"]
+
+[phases.install]
+cmds = ["npm install --ignore-scripts"]
+
+[phases.build]
+cmds = ["npx prisma generate", "npm run build"]
+
+[start]
+cmd = "npm run start"
