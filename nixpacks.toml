@@ -1,8 +1,8 @@
 [phases.install]
-cmds = ["cd apps/api && npm install"]
+cmds = ["npm install --workspace=apps/api --include-workspace-root"]
 
 [phases.build]
-cmds = ["cd apps/api && npx prisma generate && npm run build"]
+cmds = ["npx prisma generate --schema=./prisma/schema.prisma", "npm run build --workspace=apps/api"]
 
 [start]
-cmd = "cd apps/api && node dist/index.js"
+cmd = "npx prisma migrate deploy --schema=./prisma/schema.prisma && node apps/api/dist/apps/api/src/index.js"

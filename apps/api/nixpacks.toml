@@ -1,11 +1,8 @@
-[phases.setup]
-nixPkgs = ["nodejs_22", "openssl"]
-
 [phases.install]
-cmds = ["npm install --ignore-scripts"]
+cmds = ["npm install"]
 
 [phases.build]
 cmds = ["npx prisma generate", "npm run build"]
 
 [start]
-cmd = "npm run start"
+cmd = "npx prisma migrate deploy --schema=../../prisma/schema.prisma && node dist/apps/api/src/index.js"
