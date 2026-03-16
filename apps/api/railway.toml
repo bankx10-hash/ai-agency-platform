@@ -1,5 +1,5 @@
 [build]
-dockerfilePath = "Dockerfile.api"
+buildCommand = "cd apps/api && npm install && npx prisma generate && npm run build"
 
 [deploy]
-startCommand = "npm run start"
+startCommand = "cd apps/api && node dist/index.js"
