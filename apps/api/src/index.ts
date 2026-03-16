@@ -1,5 +1,6 @@
 import 'dotenv/config'
 import express from 'express'
+import cors from 'cors'
 import { apiRateLimit } from './middleware/rateLimit'
 import authRouter from './routes/auth'
 import billingRouter from './routes/billing'
@@ -11,6 +12,11 @@ import { logger } from './utils/logger'
 
 const app = express()
 const PORT = process.env.PORT || 4000
+
+app.use(cors({
+  origin: process.env.PORTAL_URL || true,
+  credentials: true
+}))
 
 app.post('/webhooks/stripe', express.raw({ type: 'application/json' }))
 
