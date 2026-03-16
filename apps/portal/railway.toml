@@ -1,5 +1,7 @@
 [build]
-buildCommand = "npm install && npm run build"
+buildCommand = "npm install && npm run build --workspace=packages/shared && npm run build --workspace=apps/portal"
 
 [deploy]
-startCommand = "npm run start"
+startCommand = "npm run start --workspace=apps/portal"
+healthcheckPath = "/"
+healthcheckTimeout = 300
