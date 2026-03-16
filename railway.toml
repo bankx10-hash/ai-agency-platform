@@ -1,5 +1,5 @@
 [build]
-buildCommand = "npm install && npm run build --workspace=apps/portal"
+buildCommand = "cd apps/portal && npm install && npm run build"
 
 [deploy]
-startCommand = "npm run start --workspace=apps/portal"
+startCommand = "cd apps/portal && npm run start"
