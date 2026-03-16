@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer'
-import { google } from 'googleapis'
+import { OAuth2Client } from 'google-auth-library'
+import axios from 'axios'
 import { logger } from '../utils/logger'
 
 interface EmailCredentials {
@@ -15,10 +16,8 @@ interface SendEmailOptions {
   html?: string
 }
 
-const OAuth2 = google.auth.OAuth2
-
 export class EmailService {
-  private getOAuth2Client() {
+  private getOAuth2Client(redirectUri?: string) {
     const clientId = process.env.GMAIL_CLIENT_ID
     const clientSecret = process.env.GMAIL_CLIENT_SECRET
 
@@ -26,10 +25,10 @@ export class EmailService {
       throw new Error('Gmail OAuth2 credentials not configured')
     }
 
-    return new OAuth2(
+    return new OAuth2Client(
       clientId,
       clientSecret,
-      'https://developers.google.com/oauthplayground'
+      redirectUri || 'https://developers.google.com/oauthplayground'
     )
   }
 
@@ -46,7 +45,7 @@ export class EmailService {
       refresh_token: credentials.refreshToken
     })
 
-    const accessToken = await oauth2Client.getAccessToken()
+    const { token } = await oauth2Client.getAccessToken()
 
     const transporter = nodemailer.createTransport({
       service: 'gmail',
@@ -56,7 +55,7 @@ export class EmailService {
         clientId: process.env.GMAIL_CLIENT_ID,
         clientSecret: process.env.GMAIL_CLIENT_SECRET,
         refreshToken: credentials.refreshToken,
-        accessToken: accessToken.token || ''
+        accessToken: token || ''
       }
     })
 
@@ -160,11 +159,7 @@ export class EmailService {
 
   getGmailAuthUrl(): string {
     const redirectUri = process.env.GMAIL_REDIRECT_URI || 'http://localhost:4000/onboarding/oauth/gmail/callback'
-    const oauth2Client = new (google.auth.OAuth2)(
-      process.env.GMAIL_CLIENT_ID,
-      process.env.GMAIL_CLIENT_SECRET,
-      redirectUri
-    )
+    const oauth2Client = this.getOAuth2Client(redirectUri)
 
     return oauth2Client.generateAuthUrl({
       access_type: 'offline',
@@ -183,22 +178,20 @@ export class EmailService {
     email: string
   }> {
     const redirectUri = process.env.GMAIL_REDIRECT_URI || 'http://localhost:4000/onboarding/oauth/gmail/callback'
-    const oauth2Client = new (google.auth.OAuth2)(
-      process.env.GMAIL_CLIENT_ID,
-      process.env.GMAIL_CLIENT_SECRET,
-      redirectUri
-    )
+    const oauth2Client = this.getOAuth2Client(redirectUri)
 
     const { tokens } = await oauth2Client.getToken(code)
     oauth2Client.setCredentials(tokens)
 
-    const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client })
-    const userInfo = await oauth2.userinfo.get()
+    const { token } = await oauth2Client.getAccessToken()
+    const userInfoRes = await axios.get('https://www.googleapis.com/oauth2/v2/userinfo', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
 
     return {
       accessToken: tokens.access_token || '',
       refreshToken: tokens.refresh_token || '',
-      email: userInfo.data.email || ''
+      email: userInfoRes.data.email || ''
     }
   }
 }
