@@ -1,0 +1,8 @@
+[phases.install]
+cmds = ["cd apps/api && npm install"]
+
+[phases.build]
+cmds = ["cd apps/api && npx prisma generate && npm run build"]
+
+[start]
+cmd = "cd apps/api && node dist/index.js"
