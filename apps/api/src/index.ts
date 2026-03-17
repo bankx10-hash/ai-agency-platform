@@ -9,6 +9,9 @@ import agentsRouter from './routes/agents'
 import onboardingRouter from './routes/onboarding'
 import webhooksRouter from './routes/webhooks'
 import { logger } from './utils/logger'
+import { prisma } from './lib/prisma'
+import { emailService } from './services/email.service'
+import { encryptJSON } from './utils/encrypt'
 
 process.on('uncaughtException', (err) => {
   logger.error('Uncaught exception', { message: err.message, stack: err.stack })
@@ -33,6 +36,44 @@ app.use(apiRateLimit)
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
+})
+
+app.get('/onboarding/oauth/gmail/callback', async (req, res) => {
+  const { code, state: clientId, error: oauthError } = req.query as Record<string, string>
+  const portalUrl = process.env['PORTAL_URL'] || 'http://localhost:3000'
+
+  if (oauthError || !code || !clientId) {
+    logger.warn('Gmail OAuth callback missing params', { code: !!code, clientId, oauthError })
+    res.redirect(`${portalUrl}/onboarding/connect?gmail=error`)
+    return
+  }
+
+  try {
+    const tokens = await emailService.exchangeCodeForTokens(code)
+    const encryptedCreds = encryptJSON({
+      accessToken: tokens.accessToken,
+      refreshToken: tokens.refreshToken,
+      email: tokens.email
+    })
+
+    await prisma.clientCredential.upsert({
+      where: { id: `gmail-${clientId}` },
+      update: { credentials: encryptedCreds },
+      create: { id: `gmail-${clientId}`, clientId, service: 'gmail', credentials: encryptedCreds }
+    })
+
+    await prisma.onboarding.upsert({
+      where: { clientId },
+      update: { data: { emailConnected: true, gmailEmail: tokens.email } },
+      create: { clientId, step: 1, status: 'IN_PROGRESS', data: { emailConnected: true, gmailEmail: tokens.email } }
+    })
+
+    logger.info('Gmail connected via OAuth callback', { clientId, gmailEmail: tokens.email })
+    res.redirect(`${portalUrl}/onboarding/connect?gmail=connected`)
+  } catch (error) {
+    logger.error('Gmail OAuth callback error', { error, clientId })
+    res.redirect(`${portalUrl}/onboarding/connect?gmail=error`)
+  }
 })
 
 app.use('/auth', authRouter)
