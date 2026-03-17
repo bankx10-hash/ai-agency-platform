@@ -49,6 +49,12 @@ app.get('/onboarding/oauth/gmail/callback', async (req, res) => {
   }
 
   try {
+    logger.info('Gmail callback attempting token exchange', {
+      clientId,
+      gmailClientId: process.env['GMAIL_CLIENT_ID']?.substring(0, 20) + '...',
+      hasSecret: !!process.env['GMAIL_CLIENT_SECRET'],
+      redirectUri: process.env['GMAIL_REDIRECT_URI']
+    })
     const tokens = await emailService.exchangeCodeForTokens(code)
     const encryptedCreds = encryptJSON({
       accessToken: tokens.accessToken,
