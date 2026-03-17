@@ -3,20 +3,21 @@ RUN apk add --no-cache openssl
 
 WORKDIR /app
 
-COPY package.json package-lock.json ./
-COPY tsconfig.base.json ./
-COPY prisma ./prisma/
-COPY packages ./packages/
-COPY apps/packages ./apps/packages/
-COPY apps/api ./apps/api/
+# Install dependencies
+COPY apps/api/package.json ./
+RUN npm install
 
-RUN npm install --workspace=apps/api --include-workspace-root
-
+# Generate Prisma client
+COPY apps/api/prisma ./prisma/
 RUN npx prisma generate
 
-WORKDIR /app/apps/api
+# Copy source and build
+COPY apps/api/tsconfig.json ./
+COPY apps/api/src ./src/
 RUN npm run build
 
-WORKDIR /app
+# Copy workflow JSON templates
+RUN cp -r src/workflows dist/workflows
+
 EXPOSE 4000
-CMD ["sh", "-c", "npx prisma migrate deploy && node apps/api/dist/apps/api/src/index.js"]
+CMD ["sh", "-c", "npx prisma migrate deploy && node dist/index.js"]
