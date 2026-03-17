@@ -1,5 +1,5 @@
 import Stripe from 'stripe'
-import { Plan } from '../../../packages/shared/types/client.types'
+import { Plan } from '../types/client.types'
 import { logger } from '../utils/logger'
 
 export class StripeService {

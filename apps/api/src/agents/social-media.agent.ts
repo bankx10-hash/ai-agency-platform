@@ -1,5 +1,5 @@
 import { BaseAgent } from './base.agent'
-import { AgentType } from '../../../packages/shared/types/agent.types'
+import { AgentType } from '../types/agent.types'
 import { n8nService } from '../services/n8n.service'
 import { socialService } from '../services/social.service'
 import { imageService } from '../services/image.service'

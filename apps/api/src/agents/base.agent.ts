@@ -1,6 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { PrismaClient, Prisma } from '@prisma/client'
-import { AgentType, AgentStatus } from '../../../packages/shared/types/agent.types'
+import { AgentType, AgentStatus } from '../types/agent.types'
 import { n8nService } from '../services/n8n.service'
 import { logger } from '../utils/logger'
 

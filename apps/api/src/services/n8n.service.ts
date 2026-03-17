@@ -2,7 +2,7 @@ import axios, { AxiosInstance } from 'axios'
 import fs from 'fs'
 import path from 'path'
 import { logger } from '../utils/logger'
-import { WorkflowDeployConfig, WorkflowDeployResult, WorkflowStatus } from '../../../packages/shared/types/workflow.types'
+import { WorkflowDeployConfig, WorkflowDeployResult, WorkflowStatus } from '../types/workflow.types'
 
 export class N8NService {
   private client: AxiosInstance

@@ -1,7 +1,7 @@
 import Bull from 'bull'
 import { PrismaClient } from '@prisma/client'
 import { createAgent } from '../agents'
-import { AgentType, AgentStatus } from '../../../packages/shared/types/agent.types'
+import { AgentType, AgentStatus } from '../types/agent.types'
 import { logger } from '../utils/logger'
 
 const prisma = new PrismaClient()

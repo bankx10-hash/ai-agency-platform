@@ -3,8 +3,8 @@ import { PrismaClient } from '@prisma/client'
 import Stripe from 'stripe'
 import { stripeService } from '../services/stripe.service'
 import { n8nService } from '../services/n8n.service'
-import { AgentStatus } from '../../../packages/shared/types/agent.types'
-import { Plan, ClientStatus } from '../../../packages/shared/types/client.types'
+import { AgentStatus } from '../types/agent.types'
+import { Plan, ClientStatus } from '../types/client.types'
 import { logger } from '../utils/logger'
 
 const router = Router()

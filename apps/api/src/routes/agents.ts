@@ -4,7 +4,7 @@ import { authMiddleware, AuthRequest } from '../middleware/auth'
 import { n8nService } from '../services/n8n.service'
 import { voiceService } from '../services/voice.service'
 import { createAgent } from '../agents'
-import { AgentType, AgentStatus } from '../../../packages/shared/types/agent.types'
+import { AgentType, AgentStatus } from '../types/agent.types'
 import { logger } from '../utils/logger'
 import { z } from 'zod'
 

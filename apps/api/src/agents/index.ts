@@ -1,4 +1,4 @@
-import { AgentType } from '../../../packages/shared/types/agent.types'
+import { AgentType } from '../types/agent.types'
 import { BaseAgent } from './base.agent'
 import { LeadGenerationAgent } from './lead-generation.agent'
 import { LinkedInAgent } from './linkedin.agent'

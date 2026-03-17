@@ -1,5 +1,5 @@
 import { BaseAgent } from './base.agent'
-import { AgentType } from '../../../packages/shared/types/agent.types'
+import { AgentType } from '../types/agent.types'
 import { n8nService } from '../services/n8n.service'
 import { voiceService } from '../services/voice.service'
 import { PrismaClient } from '@prisma/client'

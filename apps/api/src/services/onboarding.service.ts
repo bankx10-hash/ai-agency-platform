@@ -6,8 +6,8 @@ import { crmService } from './crm/crm.service'
 import { GHLProvider } from './crm/providers/ghl.provider'
 import { encryptJSON } from '../utils/encrypt'
 import { logger } from '../utils/logger'
-import { AgentType, AgentStatus, PLANS } from '../../../packages/shared/types/agent.types'
-import { Plan } from '../../../packages/shared/types/client.types'
+import { AgentType, AgentStatus, PLANS } from '../types/agent.types'
+import { Plan } from '../types/client.types'
 import { AGENT_REGISTRY } from '../agents'
 
 const prisma = new PrismaClient()
