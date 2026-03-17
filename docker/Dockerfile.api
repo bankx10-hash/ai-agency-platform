@@ -41,17 +41,12 @@ RUN apk add --no-cache dumb-init
 
 ENV NODE_ENV=production
 
-# Copy package files
-COPY apps/api/package.json ./
-
-# Install production dependencies only
-RUN npm install --omit=dev
-
-# Copy built files
+# Copy built files and dependencies from builder
 COPY --from=builder /app/apps/api/dist ./dist
-COPY --from=builder /app/apps/api/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/apps/api/node_modules ./node_modules
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/apps/api/src/workflows ./dist/workflows
+COPY apps/api/package.json ./
 
 # Create logs directory
 RUN mkdir -p /app/logs
