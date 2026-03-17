@@ -1,10 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { loadStripe } from '@stripe/stripe-js'
 import axios from 'axios'
 
-const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '')
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:4000'
 
 const plans = [
@@ -86,10 +84,8 @@ export default function OnboardingPage() {
         { headers: { Authorization: `Bearer ${token}` } }
       )
 
-      const stripe = await stripePromise
-      if (!stripe) throw new Error('Stripe not loaded')
-
-      await stripe.redirectToCheckout({ sessionId: response.data.sessionId })
+      if (!response.data.url) throw new Error('No checkout URL returned')
+      window.location.href = response.data.url
     } catch (err) {
       if (axios.isAxiosError(err)) {
         setError(err.response?.data?.error || 'Failed to start checkout')
