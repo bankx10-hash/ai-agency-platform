@@ -1,5 +1,6 @@
 [build]
-buildCommand = "npm install --include-workspace-root && npm run build --workspace=apps/api"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
 
 [deploy]
 startCommand = "npx prisma migrate deploy --schema=./prisma/schema.prisma && node apps/api/dist/apps/api/src/index.js"
