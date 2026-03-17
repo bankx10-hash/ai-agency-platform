@@ -98,6 +98,10 @@ agentDeployQueue.process(async (job) => {
   }
 })
 
+agentDeployQueue.on('error', (err) => {
+  logger.error('Agent deploy queue error', { message: err.message })
+})
+
 agentDeployQueue.on('completed', (job, result) => {
   logger.info('Agent deploy job completed', { jobId: job.id, result })
 })

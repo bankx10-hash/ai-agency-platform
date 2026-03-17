@@ -7,8 +7,8 @@ WORKDIR /app
 COPY apps/api/package.json ./
 RUN npm install
 
-# Generate Prisma client
-COPY apps/api/prisma ./prisma/
+# Copy Prisma schema and migrations (root prisma/ contains both)
+COPY prisma/ ./prisma/
 RUN npx prisma generate
 
 # Copy source and build

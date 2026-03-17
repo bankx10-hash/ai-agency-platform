@@ -10,6 +10,16 @@ import onboardingRouter from './routes/onboarding'
 import webhooksRouter from './routes/webhooks'
 import { logger } from './utils/logger'
 
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught exception', { message: err.message, stack: err.stack })
+  process.exit(1)
+})
+
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled rejection', { reason })
+  process.exit(1)
+})
+
 const app = express()
 const PORT = process.env['PORT'] || 4000
 

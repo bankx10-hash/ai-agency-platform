@@ -42,6 +42,10 @@ onboardingQueue.process(async (job) => {
   }
 })
 
+onboardingQueue.on('error', (err) => {
+  logger.error('Onboarding queue error', { message: err.message })
+})
+
 onboardingQueue.on('completed', (job, result) => {
   logger.info('Onboarding job completed', { jobId: job.id, result })
 })
