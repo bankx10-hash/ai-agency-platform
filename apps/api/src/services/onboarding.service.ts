@@ -1,4 +1,4 @@
-import { PrismaClient, Prisma, CrmType } from '@prisma/client'
+import { prisma, Prisma, CrmType } from '../lib/prisma'
 import { n8nService } from './n8n.service'
 import { voiceService } from './voice.service'
 import { emailService } from './email.service'
@@ -9,8 +9,6 @@ import { logger } from '../utils/logger'
 import { AgentType, AgentStatus, PLANS } from '../types/agent.types'
 import { Plan } from '../types/client.types'
 import { AGENT_REGISTRY } from '../agents'
-
-const prisma = new PrismaClient()
 
 export class OnboardingService {
   async runOnboarding(clientId: string): Promise<void> {

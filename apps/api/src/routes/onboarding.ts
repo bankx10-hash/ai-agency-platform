@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '../lib/prisma'
 import { authMiddleware, AuthRequest } from '../middleware/auth'
 import { onboardingQueue } from '../queue/onboarding.queue'
 import { encryptJSON } from '../utils/encrypt'
@@ -8,7 +8,6 @@ import { logger } from '../utils/logger'
 import { z } from 'zod'
 
 const router = Router()
-const prisma = new PrismaClient()
 
 const startOnboardingSchema = z.object({
   clientId: z.string(),

@@ -1,5 +1,5 @@
 import { Router, Response } from 'express'
-import { PrismaClient, Prisma } from '@prisma/client'
+import { prisma, Prisma } from '../lib/prisma'
 import { authMiddleware, AuthRequest } from '../middleware/auth'
 import { n8nService } from '../services/n8n.service'
 import { voiceService } from '../services/voice.service'
@@ -9,7 +9,6 @@ import { logger } from '../utils/logger'
 import { z } from 'zod'
 
 const router = Router()
-const prisma = new PrismaClient()
 
 const updateConfigSchema = z.object({
   config: z.record(z.unknown())

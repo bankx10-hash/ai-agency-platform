@@ -1,10 +1,9 @@
 import Anthropic from '@anthropic-ai/sdk'
-import { PrismaClient, Prisma } from '@prisma/client'
+import { prisma, Prisma } from '../lib/prisma'
 import { AgentType, AgentStatus } from '../types/agent.types'
 import { n8nService } from '../services/n8n.service'
 import { logger } from '../utils/logger'
 
-const prisma = new PrismaClient()
 const anthropic = new Anthropic({ apiKey: process.env['ANTHROPIC_API_KEY'] })
 
 export abstract class BaseAgent {

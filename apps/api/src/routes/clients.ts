@@ -1,11 +1,10 @@
 import { Router, Response } from 'express'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '../lib/prisma'
 import { authMiddleware, AuthRequest } from '../middleware/auth'
 import { logger } from '../utils/logger'
 import { z } from 'zod'
 
 const router = Router()
-const prisma = new PrismaClient()
 
 const updateClientSchema = z.object({
   businessName: z.string().min(1).optional(),

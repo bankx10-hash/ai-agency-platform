@@ -1,12 +1,11 @@
 import { Router, Response } from 'express'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '../lib/prisma'
 import { authMiddleware, AuthRequest } from '../middleware/auth'
 import { stripeService } from '../services/stripe.service'
 import { logger } from '../utils/logger'
 import { z } from 'zod'
 
 const router = Router()
-const prisma = new PrismaClient()
 
 const checkoutSchema = z.object({
   priceId: z.string(),

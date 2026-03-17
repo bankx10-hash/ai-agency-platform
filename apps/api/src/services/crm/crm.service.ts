@@ -1,4 +1,4 @@
-import { PrismaClient, CrmType } from '@prisma/client'
+import { prisma, CrmType } from '../../lib/prisma'
 import { ICRMProvider } from './crm.interface'
 import { GHLProvider } from './providers/ghl.provider'
 import { HubSpotProvider } from './providers/hubspot.provider'
@@ -6,8 +6,6 @@ import { SalesforceProvider } from './providers/salesforce.provider'
 import { ZohoProvider } from './providers/zoho.provider'
 import { decryptJSON } from '../../utils/encrypt'
 import { logger } from '../../utils/logger'
-
-const prisma = new PrismaClient()
 
 export class CRMService {
   async forClient(clientId: string): Promise<ICRMProvider> {

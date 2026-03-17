@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '../lib/prisma'
 import bcrypt from 'bcryptjs'
 import { stripeService } from '../services/stripe.service'
 import { generateToken } from '../middleware/auth'
@@ -8,7 +8,6 @@ import { logger } from '../utils/logger'
 import { z } from 'zod'
 
 const router = Router()
-const prisma = new PrismaClient()
 
 const registerSchema = z.object({
   businessName: z.string().min(1, 'Business name required'),

@@ -1,10 +1,9 @@
 import Bull from 'bull'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '../lib/prisma'
 import { createAgent } from '../agents'
 import { AgentType, AgentStatus } from '../types/agent.types'
 import { logger } from '../utils/logger'
 
-const prisma = new PrismaClient()
 const REDIS_URL = process.env['REDIS_URL'] || 'redis://localhost:6379'
 
 interface AgentDeployJobData {

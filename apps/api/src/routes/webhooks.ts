@@ -1,5 +1,5 @@
 import { Router, Request, Response } from 'express'
-import { PrismaClient } from '@prisma/client'
+import { prisma } from '../lib/prisma'
 import Stripe from 'stripe'
 import { stripeService } from '../services/stripe.service'
 import { n8nService } from '../services/n8n.service'
@@ -8,7 +8,6 @@ import { Plan, ClientStatus } from '../types/client.types'
 import { logger } from '../utils/logger'
 
 const router = Router()
-const prisma = new PrismaClient()
 
 router.post(
   '/stripe',
