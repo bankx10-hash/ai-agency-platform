@@ -20,4 +20,4 @@ RUN npm run build
 RUN cp -r src/workflows dist/workflows
 
 EXPOSE 4000
-CMD ["sh", "-c", "npx prisma db push --accept-data-loss && node dist/index.js"]
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss --skip-generate && node dist/index.js"]
