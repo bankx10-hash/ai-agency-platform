@@ -33,10 +33,19 @@ router.post('/create-checkout-session', authMiddleware, async (req: AuthRequest,
       return
     }
 
-    const client = await prisma.client.findUnique({ where: { id: clientId } })
+    let client = await prisma.client.findUnique({ where: { id: clientId } })
     if (!client) {
       res.status(404).json({ error: 'Client not found' })
       return
+    }
+
+    if (client.stripeCustomerId.startsWith('manual_')) {
+      const stripeCustomer = await stripeService.createCustomer(client.email, client.businessName)
+      client = await prisma.client.update({
+        where: { id: clientId },
+        data: { stripeCustomerId: stripeCustomer.id }
+      })
+      logger.info('Created real Stripe customer to replace manual placeholder', { clientId, stripeCustomerId: stripeCustomer.id })
     }
 
     const priceIdMap: Record<string, string | undefined> = {
