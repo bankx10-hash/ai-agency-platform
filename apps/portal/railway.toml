@@ -1,7 +1,10 @@
 [build]
-buildCommand = "npm install && npm run build --workspace=packages/shared && npm run build --workspace=apps/portal"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "npm run start --workspace=apps/portal"
+startCommand = "npm run start"
 healthcheckPath = "/"
 healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
