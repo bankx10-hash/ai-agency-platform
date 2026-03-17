@@ -19,5 +19,8 @@ RUN npm run build
 # Copy workflow JSON templates
 RUN cp -r src/workflows dist/workflows
 
+COPY start.sh ./
+RUN chmod +x start.sh
+
 EXPOSE 4000
-CMD ["sh", "-c", "npx prisma db push --accept-data-loss --skip-generate && node dist/index.js"]
+CMD ["./start.sh"]
