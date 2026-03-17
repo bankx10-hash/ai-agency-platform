@@ -1,0 +1,112 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Plan {
+  STARTER
+  GROWTH
+  AGENCY
+}
+
+enum CrmType {
+  GHL
+  HUBSPOT
+  SALESFORCE
+  ZOHO
+}
+
+enum ClientStatus {
+  PENDING
+  ACTIVE
+  PAUSED
+  CANCELLED
+}
+
+enum AgentStatus {
+  INACTIVE
+  ACTIVE
+  PAUSED
+  ERROR
+}
+
+enum OnboardingStatus {
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+}
+
+enum AgentType {
+  LEAD_GENERATION
+  LINKEDIN_OUTREACH
+  SOCIAL_MEDIA
+  ADVERTISING
+  APPOINTMENT_SETTER
+  VOICE_INBOUND
+  VOICE_OUTBOUND
+  VOICE_CLOSER
+  CLIENT_SERVICES
+}
+
+model Client {
+  id                  String           @id @default(cuid())
+  businessName        String
+  email               String           @unique
+  phone               String?
+  passwordHash        String
+  stripeCustomerId    String           @unique
+  stripeSubId         String?
+  plan                Plan             @default(STARTER)
+  status              ClientStatus     @default(PENDING)
+  crmType             CrmType          @default(GHL)
+  crmAccountId        String?
+  ghlSubAccountId     String?
+  ghlLocationId       String?
+  businessDescription String?
+  icpDescription      String?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+  agents              AgentDeployment[]
+  credentials         ClientCredential[]
+  onboarding          Onboarding?
+}
+
+model AgentDeployment {
+  id            String      @id @default(cuid())
+  clientId      String
+  client        Client      @relation(fields: [clientId], references: [id])
+  agentType     AgentType
+  status        AgentStatus @default(INACTIVE)
+  n8nWorkflowId String?
+  retellAgentId String?
+  config        Json
+  metrics       Json?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+model ClientCredential {
+  id          String   @id @default(cuid())
+  clientId    String
+  client      Client   @relation(fields: [clientId], references: [id])
+  service     String
+  credentials String
+  createdAt   DateTime @default(now())
+}
+
+model Onboarding {
+  id          String           @id @default(cuid())
+  clientId    String           @unique
+  client      Client           @relation(fields: [clientId], references: [id])
+  step        Int              @default(1)
+  status      OnboardingStatus @default(IN_PROGRESS)
+  completedAt DateTime?
+  data        Json
+}
