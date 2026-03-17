@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import axios from 'axios'
 
@@ -13,13 +13,12 @@ export default function ConnectPage() {
   const [error, setError] = useState('')
   const [gmailConnected, setGmailConnected] = useState(false)
 
-  // Check if returning from Gmail OAuth
-  if (typeof window !== 'undefined') {
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const gmailStatus = params.get('gmail')
-    if (gmailStatus === 'connected' && !gmailConnected) setGmailConnected(true)
-    if (gmailStatus === 'error' && !error) setError('Gmail connection failed. Please try again.')
-  }
+    if (gmailStatus === 'connected') setGmailConnected(true)
+    if (gmailStatus === 'error') setError('Gmail connection failed. Please try again.')
+  }, [])
 
   const [form, setForm] = useState({
     businessDescription: '',
