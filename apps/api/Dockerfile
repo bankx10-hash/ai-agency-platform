@@ -4,19 +4,19 @@ RUN apk add --no-cache openssl
 WORKDIR /app
 
 # Install dependencies (cached layer)
-COPY package.json ./
+COPY apps/api/package.json ./
 RUN npm install
 
 # Generate Prisma client
-COPY prisma ./prisma/
+COPY apps/api/prisma ./prisma/
 RUN npx prisma generate
 
 # Copy source and build
-COPY tsconfig.json ./
-COPY src ./src/
+COPY apps/api/tsconfig.json ./
+COPY apps/api/src ./src/
 RUN npm run build
 
-# Copy workflow JSON templates to dist (tsc doesn't copy non-TS files)
+# Copy workflow JSON templates (tsc does not copy non-TS files)
 RUN cp -r src/workflows dist/workflows
 
 EXPOSE 4000
