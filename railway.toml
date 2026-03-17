@@ -3,7 +3,7 @@ builder = "DOCKERFILE"
 dockerfilePath = "Dockerfile"
 
 [deploy]
-startCommand = "npx prisma migrate resolve --rolled-back 20240101000000_init 2>/dev/null || true && npx prisma migrate deploy && node dist/index.js"
+startCommand = "npx prisma db push --accept-data-loss && node dist/index.js"
 healthcheckPath = "/health"
 healthcheckTimeout = 300
 restartPolicyType = "ON_FAILURE"
