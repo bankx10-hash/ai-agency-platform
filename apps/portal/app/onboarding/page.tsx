@@ -19,7 +19,6 @@ const plans = [
       'Voice Inbound Agent (24/7)'
     ],
     color: 'from-blue-500 to-cyan-500',
-    priceId: process.env.NEXT_PUBLIC_STRIPE_STARTER_PRICE_ID || 'price_starter'
   },
   {
     id: 'GROWTH',
@@ -35,8 +34,7 @@ const plans = [
       'Voice Outbound Agent'
     ],
     color: 'from-indigo-500 to-purple-600',
-    highlighted: true,
-    priceId: process.env.NEXT_PUBLIC_STRIPE_GROWTH_PRICE_ID || 'price_growth'
+    highlighted: true
   },
   {
     id: 'AGENCY',
@@ -54,8 +52,7 @@ const plans = [
       'Voice Closer Agent',
       'Client Services Agent'
     ],
-    color: 'from-purple-600 to-pink-600',
-    priceId: process.env.NEXT_PUBLIC_STRIPE_AGENCY_PRICE_ID || 'price_agency'
+    color: 'from-purple-600 to-pink-600'
   }
 ]
 
@@ -64,7 +61,7 @@ export default function OnboardingPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
-  async function handleSelectPlan(planId: string, priceId: string) {
+  async function handleSelectPlan(planId: string) {
     setSelectedPlan(planId)
     setLoading(true)
     setError('')
@@ -81,7 +78,7 @@ export default function OnboardingPage() {
       const response = await axios.post(
         `${API_URL}/billing/create-checkout-session`,
         {
-          priceId,
+          planId,
           clientId,
           successUrl: `${window.location.origin}/onboarding/connect?session_id={CHECKOUT_SESSION_ID}`,
           cancelUrl: `${window.location.origin}/onboarding`
@@ -163,7 +160,7 @@ export default function OnboardingPage() {
                 </div>
 
                 <button
-                  onClick={() => handleSelectPlan(plan.id, plan.priceId)}
+                  onClick={() => handleSelectPlan(plan.id)}
                   disabled={loading}
                   className={`w-full py-3 px-4 bg-gradient-to-r ${plan.color} text-white font-semibold rounded-xl hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition disabled:opacity-50 disabled:cursor-not-allowed shadow-md`}
                 >

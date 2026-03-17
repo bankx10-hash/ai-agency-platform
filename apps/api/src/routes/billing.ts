@@ -8,7 +8,7 @@ import { z } from 'zod'
 const router = Router()
 
 const checkoutSchema = z.object({
-  priceId: z.string(),
+  planId: z.enum(['STARTER', 'GROWTH', 'AGENCY']),
   clientId: z.string(),
   successUrl: z.string().url(),
   cancelUrl: z.string().url()
@@ -26,7 +26,7 @@ router.post('/create-checkout-session', authMiddleware, async (req: AuthRequest,
       return
     }
 
-    const { priceId, clientId, successUrl, cancelUrl } = parsed.data
+    const { planId, clientId, successUrl, cancelUrl } = parsed.data
 
     if (req.clientId !== clientId) {
       res.status(403).json({ error: 'Forbidden' })
@@ -36,6 +36,17 @@ router.post('/create-checkout-session', authMiddleware, async (req: AuthRequest,
     const client = await prisma.client.findUnique({ where: { id: clientId } })
     if (!client) {
       res.status(404).json({ error: 'Client not found' })
+      return
+    }
+
+    const priceIdMap: Record<string, string | undefined> = {
+      STARTER: process.env['STRIPE_STARTER_PRICE_ID'],
+      GROWTH: process.env['STRIPE_GROWTH_PRICE_ID'],
+      AGENCY: process.env['STRIPE_AGENCY_PRICE_ID']
+    }
+    const priceId = priceIdMap[planId]
+    if (!priceId) {
+      res.status(500).json({ error: `Stripe price ID for plan ${planId} is not configured` })
       return
     }
 
