@@ -248,7 +248,12 @@ router.post('/:clientId/connect-gmail', authMiddleware, async (req: AuthRequest,
 
 router.get('/gmail/auth-url', authMiddleware, (req: AuthRequest, res: Response): void => {
   try {
-    const authUrl = emailService.getGmailAuthUrl(req.clientId!)
+    const clientId = req.clientId || (req.query['clientId'] as string)
+    if (!clientId) {
+      res.status(400).json({ error: 'clientId required' })
+      return
+    }
+    const authUrl = emailService.getGmailAuthUrl(clientId)
     res.json({ url: authUrl })
   } catch (error) {
     logger.error('Error generating Gmail auth URL', { error })

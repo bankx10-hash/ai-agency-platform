@@ -46,7 +46,8 @@ export default function ConnectPage() {
   async function handleGmailConnect() {
     try {
       const token = getToken()
-      const response = await axios.get(`${API_URL}/onboarding/gmail/auth-url`, {
+      const clientId = getClientId()
+      const response = await axios.get(`${API_URL}/onboarding/gmail/auth-url?clientId=${clientId}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       window.location.href = response.data.url
