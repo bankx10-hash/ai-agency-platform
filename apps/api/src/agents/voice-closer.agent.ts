@@ -14,6 +14,7 @@ export interface VoiceCloserConfig {
   commission_tracking: boolean
   locationId: string
   businessName: string
+  api_key?: string
 }
 
 export class VoiceCloserAgent extends BaseAgent {
@@ -91,7 +92,7 @@ Remember: Closing is about helping them make a decision that's right for them. B
     try {
       const voiceResult = await voiceService.createOutboundAgent({
         prompt: closingScript,
-        voice: 'eleven_labs_english_male_adam',
+        voice: '11labs-Noah',
         firstSentence: `Hi, this is calling from ${config.businessName}. I'm following up from our conversation — do you have a few minutes?`,
         clientId,
         businessName: config.businessName
@@ -111,10 +112,11 @@ Remember: Closing is about helping them make a decision that's right for them. B
         locationId: config.locationId,
         agentPrompt: closingScript,
         webhookUrl: `${process.env['N8N_BASE_URL']}/webhook/voice-closer-${clientId}`,
-        businessName: config.businessName
+        businessName: config.businessName,
+        apiKey: config.api_key as string || ''
       })
     } catch (error) {
-      logger.warn('N8N workflow deployment failed', { clientId, error })
+      logger.warn('N8N workflow deployment failed', { clientId, error: String(error) })
     }
 
     const deployment = await this.createDeploymentRecord(

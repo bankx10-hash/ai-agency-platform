@@ -15,9 +15,8 @@ const startOnboardingSchema = z.object({
 })
 
 const connectCRMSchema = z.object({
-  crmType: z.enum(['gohighlevel', 'hubspot', 'salesforce', 'zoho', 'none']),
-  apiKey: z.string().optional(),
-  locationId: z.string().optional()   // GHL-specific: sub-account location ID
+  crmType: z.enum(['hubspot', 'salesforce', 'zoho', 'none']),
+  apiKey: z.string().optional()
 })
 
 const connectGmailSchema = z.object({
@@ -138,11 +137,9 @@ router.post('/:clientId/connect-crm', authMiddleware, async (req: AuthRequest, r
       return
     }
 
-    const { crmType, apiKey, locationId } = parsed.data
+    const { crmType, apiKey } = parsed.data
 
-    // Map frontend crmType string to Prisma enum value
     const crmTypeMap: Record<string, string> = {
-      gohighlevel: 'GHL',
       hubspot: 'HUBSPOT',
       salesforce: 'SALESFORCE',
       zoho: 'ZOHO',
@@ -151,29 +148,12 @@ router.post('/:clientId/connect-crm', authMiddleware, async (req: AuthRequest, r
     const prismaClientCrmType = crmTypeMap[crmType] || 'NONE'
 
     if (crmType !== 'none' && apiKey) {
-      const credPayload: Record<string, string> = { crmType, apiKey }
+      const encryptedCreds = encryptJSON({ crmType, apiKey })
 
-      // GHL requires a locationId to scope all API calls to the correct sub-account
-      if (crmType === 'gohighlevel') {
-        if (!locationId) {
-          res.status(400).json({ error: 'GoHighLevel requires a Location ID' })
-          return
-        }
-        credPayload.locationId = locationId
-
-        // Persist locationId directly on the Client record so agents can use it
-        await prisma.client.update({
-          where: { id: clientId },
-          data: { ghlLocationId: locationId, crmType: prismaClientCrmType as any }
-        })
-      } else {
-        await prisma.client.update({
-          where: { id: clientId },
-          data: { crmType: prismaClientCrmType as any }
-        })
-      }
-
-      const encryptedCreds = encryptJSON(credPayload)
+      await prisma.client.update({
+        where: { id: clientId },
+        data: { crmType: prismaClientCrmType as any }
+      })
 
       await prisma.clientCredential.upsert({
         where: { id: `crm-${clientId}` },
@@ -186,7 +166,6 @@ router.post('/:clientId/connect-crm', authMiddleware, async (req: AuthRequest, r
         }
       })
     } else {
-      // Even if no API key, update the crmType selection
       await prisma.client.update({
         where: { id: clientId },
         data: { crmType: prismaClientCrmType as any }

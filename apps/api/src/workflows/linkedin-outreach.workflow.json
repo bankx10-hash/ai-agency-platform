@@ -6,8 +6,11 @@
       "id": "schedule-trigger",
       "name": "Daily Schedule",
       "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1,
-      "position": [250, 300],
+      "typeVersion": 1.1,
+      "position": [
+        250,
+        300
+      ],
       "parameters": {
         "rule": {
           "interval": [
@@ -24,23 +27,48 @@
       "name": "Get Prospects via ProxyCurl",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [500, 300],
+      "position": [
+        500,
+        300
+      ],
       "parameters": {
         "method": "GET",
         "url": "https://nubela.co/proxycurl/api/search/person",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "=Bearer {{$env.PROXYCURL_API_KEY}}" }
+            {
+              "name": "Authorization",
+              "value": "Bearer {{PROXYCURL_API_KEY}}"
+            }
           ]
         },
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "headline_keyword", "value": "{{SEARCH_KEYWORDS}}" },
-            { "name": "page_size", "value": "10" }
+            {
+              "name": "headline_keyword",
+              "value": "{{ICP_DESCRIPTION}}"
+            },
+            {
+              "name": "page_size",
+              "value": "10"
+            }
           ]
         }
+      }
+    },
+    {
+      "id": "split-prospects",
+      "name": "Split Prospects",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        625,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst results = raw.results || raw.body?.results || [];\nif (results.length === 0) return [];\nreturn results.map(p => ({ json: p }));"
       }
     },
     {
@@ -48,91 +76,247 @@
       "name": "Claude - Personalise Message",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [750, 300],
+      "position": [
+        750,
+        300
+      ],
       "parameters": {
         "method": "POST",
         "url": "https://api.anthropic.com/v1/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "x-api-key", "value": "={{$env.ANTHROPIC_API_KEY}}" },
-            { "name": "anthropic-version", "value": "2023-06-01" },
-            { "name": "content-type", "value": "application/json" }
+            {
+              "name": "x-api-key",
+              "value": "{{ANTHROPIC_API_KEY}}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":300,\"system\":\"{{AGENT_PROMPT}}\",\"messages\":[{\"role\":\"user\",\"content\":\"Write a LinkedIn connection request for: \" + JSON.stringify($json)}]}"
+        "body": "={{ JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:300,system:'{{AGENT_PROMPT}}',messages:[{role:'user',content:'Write a LinkedIn connection request for: ' + JSON.stringify($json)}]}) }}",
+        "contentType": "raw",
+        "rawContentType": "application/json"
       }
     },
     {
-      "id": "log-to-ghl",
-      "name": "Log Activity to GHL",
+      "id": "log-to-crm",
+      "name": "Log Activity to CRM",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1000, 300],
+      "position": [
+        1000,
+        300
+      ],
       "parameters": {
         "method": "POST",
-        "url": "={{$env.GHL_BASE_URL}}/contacts",
+        "url": "{{API_URL}}/clients/{{CLIENT_ID}}/crm/contacts",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "Bearer {{$env.GHL_API_KEY}}" },
-            { "name": "Version", "value": "2021-07-28" }
+            {
+              "name": "Authorization",
+              "value": "Bearer {{API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\"locationId\":\"{{LOCATION_ID}}\",\"firstName\":$json.firstName,\"lastName\":$json.lastName,\"source\":\"LinkedIn Outreach\",\"tags\":[\"linkedin-prospect\",\"client-{{CLIENT_ID}}\"]}"
+        "specifyBody": "string",
+        "body": "={\"locationId\":\"{{LOCATION_ID}}\",\"firstName\":($('Split Prospects').item.json.full_name || '').split(' ')[0],\"lastName\":($('Split Prospects').item.json.full_name || '').split(' ').slice(1).join(' '),\"source\":\"LinkedIn Outreach\",\"tags\":[\"linkedin-prospect\",\"client-{{CLIENT_ID}}\"],\"customFields\":{\"linkedin_url\":$('Split Prospects').item.json.profile_url || '',\"company\":$('Split Prospects').item.json.company || ''}}"
       }
     },
     {
       "id": "webhook-reply-handler",
       "name": "Handle LinkedIn Reply",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
-      "position": [250, 500],
+      "typeVersion": 2,
+      "position": [
+        250,
+        500
+      ],
       "parameters": {
+        "httpMethod": "POST",
         "path": "linkedin-reply-{{CLIENT_ID}}",
         "responseMode": "onReceived"
-      },
-      "webhookId": "linkedin-reply-{{CLIENT_ID}}"
+      }
     },
     {
       "id": "claude-classify-reply",
       "name": "Claude - Classify Reply",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [500, 500],
+      "position": [
+        500,
+        500
+      ],
       "parameters": {
         "method": "POST",
         "url": "https://api.anthropic.com/v1/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "x-api-key", "value": "={{$env.ANTHROPIC_API_KEY}}" },
-            { "name": "anthropic-version", "value": "2023-06-01" },
-            { "name": "content-type", "value": "application/json" }
+            {
+              "name": "x-api-key",
+              "value": "{{ANTHROPIC_API_KEY}}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":200,\"system\":\"Classify LinkedIn replies as: INTERESTED, QUESTION, NOT_INTERESTED, or NEUTRAL. Return JSON with classification and suggested_response.\",\"messages\":[{\"role\":\"user\",\"content\":\"Classify this reply: \" + $json.message}]}"
+        "body": "={{ JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:200,system:'Classify LinkedIn replies as: INTERESTED, QUESTION, NOT_INTERESTED, or NEUTRAL. Return JSON with classification and suggested_response.',messages:[{role:'user',content:'Classify this reply: ' + ($json.body?.message || $json.message || '')}]}) }}",
+        "contentType": "raw",
+        "rawContentType": "application/json"
+      }
+    },
+    {
+      "id": "seed-data-linkedin-outreach",
+      "name": "Seed Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        375,
+        300
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "seed-test",
+              "name": "test",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "seed-timestamp",
+              "name": "timestamp",
+              "value": "={{ $now }}",
+              "type": "string"
+            },
+            {
+              "id": "seed-clientId",
+              "name": "clientId",
+              "value": "{{CLIENT_ID}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "test-trigger-linkedin-outreach",
+      "name": "Test Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        250,
+        150
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "test-linkedin-outreach-{{CLIENT_ID}}",
+        "responseMode": "onReceived",
+        "responseData": "allEntries"
       }
     }
   ],
   "connections": {
     "Daily Schedule": {
-      "main": [[{ "node": "Get Prospects via ProxyCurl", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Seed Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Get Prospects via ProxyCurl": {
-      "main": [[{ "node": "Claude - Personalise Message", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Split Prospects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Prospects": {
+      "main": [
+        [
+          {
+            "node": "Claude - Personalise Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Claude - Personalise Message": {
-      "main": [[{ "node": "Log Activity to GHL", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Log Activity to CRM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Handle LinkedIn Reply": {
-      "main": [[{ "node": "Claude - Classify Reply", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Claude - Classify Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Seed Data": {
+      "main": [
+        [
+          {
+            "node": "Get Prospects via ProxyCurl",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Trigger": {
+      "main": [
+        [
+          {
+            "node": "Split Prospects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {

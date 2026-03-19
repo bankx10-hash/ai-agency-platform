@@ -6,8 +6,10 @@ import authRouter from './routes/auth'
 import billingRouter from './routes/billing'
 import clientsRouter from './routes/clients'
 import agentsRouter from './routes/agents'
+import crmRouter from './routes/crm'
 import onboardingRouter from './routes/onboarding'
 import webhooksRouter from './routes/webhooks'
+import adminRouter from './routes/admin'
 import { logger } from './utils/logger'
 import { prisma } from './lib/prisma'
 import { emailService } from './services/email.service'
@@ -36,6 +38,73 @@ app.use(apiRateLimit)
 
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() })
+})
+
+app.post('/admin/test-onboard', async (req, res) => {
+  try {
+    const bcrypt = require('bcryptjs')
+    const { onboardingQueue } = require('./queue/onboarding.queue')
+    const {
+      businessName = 'Test Business',
+      email = `test-${Date.now()}@test.com`,
+      password = 'password123',
+      plan = 'STARTER',
+      crmType = 'NONE',
+      businessDescription = 'A test business for AI automation',
+      icpDescription = 'Small business owners looking to automate'
+    } = req.body
+
+    const existing = await prisma.client.findUnique({ where: { email } })
+    if (existing) {
+      // Reset existing client for re-onboarding
+      await prisma.onboarding.deleteMany({ where: { clientId: existing.id } })
+      await prisma.client.update({ where: { id: existing.id }, data: { status: 'PENDING', crmType, businessDescription, icpDescription } })
+      await onboardingQueue.add({ clientId: existing.id }, { jobId: `onboarding-${existing.id}-${Date.now()}`, attempts: 3 })
+      res.json({ message: 'Existing client re-queued for onboarding', clientId: existing.id, email })
+      return
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12)
+    const client = await prisma.client.create({
+      data: {
+        businessName,
+        email,
+        passwordHash,
+        stripeCustomerId: `test_${Date.now()}`,
+        status: 'PENDING',
+        plan,
+        crmType,
+        businessDescription,
+        icpDescription
+      }
+    })
+
+    await onboardingQueue.add({ clientId: client.id }, { jobId: `onboarding-${client.id}-${Date.now()}`, attempts: 3 })
+
+    const { generateToken } = require('./middleware/auth')
+    const token = generateToken(client.id, client.email)
+
+    logger.info('Test onboarding triggered', { clientId: client.id, email, plan })
+    res.json({ message: 'Test client created and onboarding queued', clientId: client.id, email, plan, token })
+  } catch (error) {
+    res.status(500).json({ error: String(error) })
+  }
+})
+
+app.post('/admin/flush-redis', async (_req, res) => {
+  try {
+    const Bull = require('bull')
+    const queue = new Bull('onboarding', process.env['REDIS_URL'] || 'redis://localhost:6379')
+    await queue.empty()
+    await queue.clean(0, 'failed')
+    await queue.clean(0, 'completed')
+    await queue.clean(0, 'delayed')
+    await queue.close()
+    logger.info('Redis queue flushed via admin endpoint')
+    res.json({ success: true, message: 'Queue flushed' })
+  } catch (error) {
+    res.status(500).json({ error: String(error) })
+  }
 })
 
 app.get('/onboarding/oauth/gmail/callback', async (req, res) => {
@@ -86,8 +155,10 @@ app.use('/auth', authRouter)
 app.use('/billing', billingRouter)
 app.use('/clients', clientsRouter)
 app.use('/agents', agentsRouter)
+app.use('/clients/:clientId/crm', crmRouter)
 app.use('/onboarding', onboardingRouter)
 app.use('/webhooks', webhooksRouter)
+app.use('/admin', adminRouter)
 
 app.use((err: Error, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   logger.error('Unhandled error', { message: err.message, stack: err.stack })

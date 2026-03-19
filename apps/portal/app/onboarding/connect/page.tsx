@@ -23,9 +23,8 @@ export default function ConnectPage() {
   const [form, setForm] = useState({
     businessDescription: '',
     icpDescription: '',
-    crmType: 'none' as 'gohighlevel' | 'hubspot' | 'salesforce' | 'zoho' | 'none',
+    crmType: 'none' as 'hubspot' | 'salesforce' | 'zoho' | 'none',
     crmApiKey: '',
-    ghlLocationId: '',
     linkedinCookie: '',
     // Social media platform credentials
     metaPageId: '',
@@ -69,8 +68,7 @@ export default function ConnectPage() {
         `${API_URL}/onboarding/${clientId}/connect-crm`,
         {
           crmType: form.crmType,
-          apiKey: form.crmApiKey,
-          ...(form.crmType === 'gohighlevel' ? { locationId: form.ghlLocationId } : {})
+          apiKey: form.crmApiKey
         },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -202,46 +200,12 @@ export default function ConnectPage() {
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition text-gray-900 mb-3"
               >
                 <option value="none">No existing CRM</option>
-                <option value="gohighlevel">GoHighLevel (GHL)</option>
                 <option value="hubspot">HubSpot</option>
                 <option value="salesforce">Salesforce</option>
                 <option value="zoho">Zoho CRM</option>
               </select>
 
-              {form.crmType === 'gohighlevel' && (
-                <div className="space-y-3 p-4 bg-orange-50 border border-orange-200 rounded-xl">
-                  <div className="flex items-center gap-2 mb-1">
-                    <svg className="w-4 h-4 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                    <span className="text-xs font-semibold text-orange-700">GoHighLevel credentials — find these in your GHL account</span>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Location API Key <span className="text-gray-400 font-normal">(Settings → API Keys → Location API Key)</span>
-                    </label>
-                    <input
-                      type="password"
-                      value={form.crmApiKey}
-                      onChange={e => update('crmApiKey', e.target.value)}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition text-gray-900"
-                      placeholder="Paste your GHL Location API Key..."
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Location ID <span className="text-gray-400 font-normal">(Settings → Business Info → Location ID)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={form.ghlLocationId}
-                      onChange={e => update('ghlLocationId', e.target.value)}
-                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition text-gray-900"
-                      placeholder="e.g. AbC12dEfGhIjKlMn"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {form.crmType !== 'none' && form.crmType !== 'gohighlevel' && (
+              {form.crmType !== 'none' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {form.crmType.charAt(0).toUpperCase() + form.crmType.slice(1)} API Key

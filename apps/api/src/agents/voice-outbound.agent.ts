@@ -14,6 +14,7 @@ export interface VoiceOutboundConfig {
   ghl_pipeline_stage: string
   locationId: string
   businessName: string
+  api_key?: string
 }
 
 export class VoiceOutboundAgent extends BaseAgent {
@@ -78,7 +79,7 @@ Always be respectful of the person's time. If they're busy, offer to call at a b
     try {
       const voiceResult = await voiceService.createOutboundAgent({
         prompt: outboundScript,
-        voice: 'eleven_labs_english_male_adam',
+        voice: '11labs-Noah',
         firstSentence: `Hi, is this a good time to chat for just 2 minutes? I'm calling from ${config.businessName}.`,
         clientId,
         businessName: config.businessName
@@ -98,10 +99,12 @@ Always be respectful of the person's time. If they're busy, offer to call at a b
         locationId: config.locationId,
         agentPrompt: outboundScript,
         webhookUrl: `${process.env['N8N_BASE_URL']}/webhook/voice-outbound-${clientId}`,
-        businessName: config.businessName
+        businessName: config.businessName,
+        apiKey: config.api_key as string || '',
+        retellAgentId: retellAgentId || ''
       })
     } catch (error) {
-      logger.warn('N8N workflow deployment failed', { clientId, error })
+      logger.warn('N8N workflow deployment failed', { clientId, error: String(error) })
     }
 
     const deployment = await this.createDeploymentRecord(

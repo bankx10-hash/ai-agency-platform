@@ -11,6 +11,7 @@ export interface LinkedInAgentConfig {
   linkedin_cookie: string
   locationId: string
   businessName: string
+  api_key?: string
 }
 
 export class LinkedInAgent extends BaseAgent {
@@ -60,10 +61,11 @@ Generate only the message text, nothing else.`
         locationId: config.locationId,
         agentPrompt: connectionPrompt,
         searchKeywords: config.search_keywords,
-        businessName: config.businessName
+        businessName: config.businessName,
+        apiKey: config.api_key as string || ''
       })
     } catch (error) {
-      logger.warn('N8N workflow deployment failed', { clientId, error })
+      logger.warn('N8N workflow deployment failed', { clientId, error: String(error) })
     }
 
     const deployment = await this.createDeploymentRecord(

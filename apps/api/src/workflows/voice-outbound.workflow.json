@@ -6,8 +6,11 @@
       "id": "schedule-trigger",
       "name": "Call Schedule",
       "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1,
-      "position": [250, 300],
+      "typeVersion": 1.1,
+      "position": [
+        250,
+        300
+      ],
       "parameters": {
         "rule": {
           "interval": [
@@ -21,76 +24,125 @@
     },
     {
       "id": "fetch-call-list",
-      "name": "Fetch Call List from GHL",
+      "name": "Fetch Call List",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [500, 300],
+      "position": [
+        500,
+        300
+      ],
       "parameters": {
         "method": "GET",
-        "url": "={{$env.GHL_BASE_URL}}/contacts",
+        "url": "{{API_URL}}/clients/{{CLIENT_ID}}/crm/contacts",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "Bearer {{$env.GHL_API_KEY}}" },
-            { "name": "Version", "value": "2021-07-28" }
+            {
+              "name": "Authorization",
+              "value": "Bearer {{API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "locationId", "value": "{{LOCATION_ID}}" },
-            { "name": "query", "value": "stage:{{CLIENT_ID}}-outbound-queue" },
-            { "name": "limit", "value": "50" }
+            {
+              "name": "locationId",
+              "value": "{{LOCATION_ID}}"
+            },
+            {
+              "name": "query",
+              "value": "stage:{{CLIENT_ID}}-outbound-queue"
+            },
+            {
+              "name": "limit",
+              "value": "50"
+            }
           ]
         }
       }
     },
     {
+      "id": "split-outbound-contacts",
+      "name": "Split Outbound Contacts",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        625,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const raw = $input.first().json;\nconst contacts = raw.contacts || raw.body?.contacts || [];\nif (contacts.length === 0) return [];\nreturn contacts.map(c => ({ json: c }));"
+      }
+    },
+    {
       "id": "launch-outbound-call",
-      "name": "Launch Call via Bland.ai",
+      "name": "Launch Call via Retell AI",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [750, 300],
+      "position": [
+        750,
+        300
+      ],
       "parameters": {
         "method": "POST",
-        "url": "https://api.bland.ai/v1/calls",
+        "url": "https://api.retellai.com/v2/create-phone-call",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "={{$env.BLAND_API_KEY}}" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Authorization",
+              "value": "Bearer {{RETELL_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\"phone_number\":$json.phone,\"agent_id\":\"{{PHONE_NUMBER}}\",\"request_data\":{\"firstName\":$json.firstName,\"lastName\":$json.lastName,\"company\":$json.companyName}}"
+        "specifyBody": "string",
+        "body": "={\"from_number\":\"{{PHONE_NUMBER}}\",\"to_number\":$json.phone,\"agent_id\":$json.retell_agent_id || '{{RETELL_AGENT_ID}}',\"metadata\":{\"clientId\":\"{{CLIENT_ID}}\",\"contactId\":$json.id}}"
       }
     },
     {
       "id": "call-complete-webhook",
       "name": "Call Completed Webhook",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
-      "position": [250, 500],
+      "typeVersion": 2,
+      "position": [
+        250,
+        500
+      ],
       "parameters": {
+        "httpMethod": "POST",
         "path": "voice-outbound-{{CLIENT_ID}}",
         "responseMode": "onReceived"
-      },
-      "webhookId": "voice-outbound-{{CLIENT_ID}}"
+      }
     },
     {
       "id": "get-call-result",
       "name": "Get Call Result",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [500, 500],
+      "position": [
+        500,
+        500
+      ],
       "parameters": {
         "method": "GET",
-        "url": "https://api.bland.ai/v1/calls/{{$json.call_id}}",
+        "url": "=\"https://api.retellai.com/v2/get-call/\" + ($json.body?.call_id || $json.call_id)",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "={{$env.BLAND_API_KEY}}" }
+            {
+              "name": "Authorization",
+              "value": "Bearer {{RETELL_API_KEY}}"
+            }
           ]
         }
       }
@@ -100,42 +152,77 @@
       "name": "Claude - Analyse Call Outcome",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [750, 500],
+      "position": [
+        750,
+        500
+      ],
       "parameters": {
         "method": "POST",
         "url": "https://api.anthropic.com/v1/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "x-api-key", "value": "={{$env.ANTHROPIC_API_KEY}}" },
-            { "name": "anthropic-version", "value": "2023-06-01" },
-            { "name": "content-type", "value": "application/json" }
+            {
+              "name": "x-api-key",
+              "value": "{{ANTHROPIC_API_KEY}}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":500,\"system\":\"{{AGENT_PROMPT}}\",\"messages\":[{\"role\":\"user\",\"content\":\"Analyse this outbound call outcome. Classify as: INTERESTED, CALLBACK, NOT_INTERESTED, VOICEMAIL, NO_ANSWER. Return JSON with outcome, nextAction, and followUpSMS. Transcript: \" + JSON.stringify($json.transcripts)}]}"
+        "body": "={{ JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:500,system:'{{AGENT_PROMPT}}',messages:[{role:'user',content:'Analyse this outbound call outcome. Classify as: INTERESTED, CALLBACK, NOT_INTERESTED, VOICEMAIL, NO_ANSWER. Return JSON with fields: outcome (string), nextAction (string), followUpSMS (string). Transcript: ' + JSON.stringify($json.transcript || $json.transcript_object || [])}]}) }}",
+        "contentType": "raw",
+        "rawContentType": "application/json"
       }
     },
     {
-      "id": "update-ghl-outcome",
-      "name": "Update GHL with Outcome",
+      "id": "parse-call-outcome",
+      "name": "Parse Call Outcome",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        875,
+        500
+      ],
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.content?.[0]?.text || '{}';\nlet result = {};\ntry {\n  result = JSON.parse(raw.replace(/```json\\n?|\\n?```/g, '').trim());\n} catch(e) {\n  result = { outcome: 'NO_ANSWER', nextAction: 'Retry tomorrow', followUpSMS: '' };\n}\nconst contactId = $('Get Call Result').item.json.metadata?.contactId || '';\nreturn [{ json: { ...result, contactId } }];"
+      }
+    },
+    {
+      "id": "update-contact-outcome",
+      "name": "Update Contact with Outcome",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1000, 500],
+      "position": [
+        1000,
+        500
+      ],
       "parameters": {
         "method": "PUT",
-        "url": "={{$env.GHL_BASE_URL}}/contacts/{{$json.contactId}}",
+        "url": "={{\"{{API_URL}}/clients/{{CLIENT_ID}}/crm/contacts/\" + $json.contactId}}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "Bearer {{$env.GHL_API_KEY}}" },
-            { "name": "Version", "value": "2021-07-28" }
+            {
+              "name": "Authorization",
+              "value": "Bearer {{API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\"locationId\":\"{{LOCATION_ID}}\",\"tags\":[\"call-outcome-\" + $json.outcome],\"customFields\":{\"last_call_outcome\":$json.outcome,\"call_date\":new Date().toISOString()}}"
+        "specifyBody": "string",
+        "body": "={\"locationId\":\"{{LOCATION_ID}}\",\"tags\":[\"call-outcome-\" + $json.outcome],\"customFields\":{\"last_call_outcome\":$json.outcome,\"call_date\":new Date().toISOString()}}"
       }
     },
     {
@@ -143,41 +230,195 @@
       "name": "Send Follow-up SMS",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1250, 500],
+      "position": [
+        1250,
+        500
+      ],
       "parameters": {
         "method": "POST",
-        "url": "={{$env.GHL_BASE_URL}}/conversations/messages",
+        "url": "{{API_URL}}/clients/{{CLIENT_ID}}/crm/sms",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "Bearer {{$env.GHL_API_KEY}}" },
-            { "name": "Version", "value": "2021-07-28" }
+            {
+              "name": "Authorization",
+              "value": "Bearer {{API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\"locationId\":\"{{LOCATION_ID}}\",\"contactId\":$json.contactId,\"type\":\"SMS\",\"message\":$json.followUpSMS}"
+        "specifyBody": "string",
+        "body": "={\"locationId\":\"{{LOCATION_ID}}\",\"contactId\":$json.contactId,\"type\":\"SMS\",\"message\":$json.followUpSMS}"
+      }
+    },
+    {
+      "id": "seed-data-voice-outbound",
+      "name": "Seed Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        375,
+        300
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "seed-test",
+              "name": "test",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "seed-timestamp",
+              "name": "timestamp",
+              "value": "={{ $now }}",
+              "type": "string"
+            },
+            {
+              "id": "seed-clientId",
+              "name": "clientId",
+              "value": "{{CLIENT_ID}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "test-trigger-voice-outbound",
+      "name": "Test Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        250,
+        150
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "test-voice-outbound-{{CLIENT_ID}}",
+        "responseMode": "onReceived",
+        "responseData": "allEntries"
       }
     }
   ],
   "connections": {
     "Call Schedule": {
-      "main": [[{ "node": "Fetch Call List from GHL", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Seed Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "Fetch Call List from GHL": {
-      "main": [[{ "node": "Launch Call via Bland.ai", "type": "main", "index": 0 }]]
+    "Fetch Call List": {
+      "main": [
+        [
+          {
+            "node": "Split Outbound Contacts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Split Outbound Contacts": {
+      "main": [
+        [
+          {
+            "node": "Launch Call via Retell AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Call Completed Webhook": {
-      "main": [[{ "node": "Get Call Result", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Get Call Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Get Call Result": {
-      "main": [[{ "node": "Claude - Analyse Call Outcome", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Claude - Analyse Call Outcome",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Claude - Analyse Call Outcome": {
-      "main": [[{ "node": "Update GHL with Outcome", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Parse Call Outcome",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
-    "Update GHL with Outcome": {
-      "main": [[{ "node": "Send Follow-up SMS", "type": "main", "index": 0 }]]
+    "Parse Call Outcome": {
+      "main": [
+        [
+          {
+            "node": "Update Contact with Outcome",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Contact with Outcome": {
+      "main": [
+        [
+          {
+            "node": "Send Follow-up SMS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Seed Data": {
+      "main": [
+        [
+          {
+            "node": "Fetch Call List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Trigger": {
+      "main": [
+        [
+          {
+            "node": "Split Outbound Contacts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {

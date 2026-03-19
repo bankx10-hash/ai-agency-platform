@@ -8,7 +8,6 @@ interface InboundAgentConfig {
   firstSentence?: string
   transferNumber?: string
   calendarWebhook?: string
-  twilioPhoneNumber: string
   clientId: string
   businessName: string
 }
@@ -91,22 +90,22 @@ export class VoiceService {
     return response.data.llm_id
   }
 
-  async createInboundAgent(config: InboundAgentConfig): Promise<{ agentId: string; phoneNumber: string }> {
+  async createInboundAgent(config: InboundAgentConfig): Promise<{ agentId: string }> {
     const llmId = await this.createLlm(
       config.prompt,
       config.firstSentence || `Thank you for calling ${config.businessName}. How can I help you today?`
     )
 
     const response = await this.client.post<RetellAgentResponse>('/create-agent', {
-      llm_websocket_url: `wss://api.retellai.com/retell-llm/llm-websocket/${llmId}`,
+      response_engine: { type: 'retell-llm', llm_id: llmId },
       agent_name: `${config.businessName} — Inbound`,
-      voice_id: config.voice || 'eleven_labs_english_male_adam',
+      voice_id: config.voice || '11labs-Noah',
       language: 'en-US',
       webhook_url: config.calendarWebhook || null,
       responsiveness: 1,
       interruption_sensitivity: 1,
       enable_backchannel: true,
-      ambient_sound: 'office',
+      ambient_sound: 'call-center',
       metadata: {
         clientId: config.clientId,
         businessName: config.businessName,
@@ -115,32 +114,32 @@ export class VoiceService {
     })
 
     const agentId = response.data.agent_id
+    logger.info('Retell inbound agent created', { agentId, clientId: config.clientId })
+    return { agentId }
+  }
 
-    // Bind the client's Twilio number to this Retell agent for inbound calls
-    await this.client.post('/create-phone-number-from-existing-number', {
-      phone_number: config.twilioPhoneNumber,
-      inbound_agent_id: agentId,
-      nickname: `${config.businessName} Inbound`
-    })
-
-    logger.info('Retell inbound agent created and bound to Twilio number', {
-      agentId,
-      phoneNumber: config.twilioPhoneNumber
-    })
-
-    return {
-      agentId,
-      phoneNumber: config.twilioPhoneNumber
+  async provisionRetellNumber(agentId: string, nickname: string, areaCode?: number): Promise<string> {
+    const body: Record<string, unknown> = {
+      number_provider: process.env['RETELL_NUMBER_PROVIDER'] || 'twilio',
+      nickname,
+      inbound_agents: [{ agent_id: agentId, weight: 1 }]
     }
+    if (areaCode) body.area_code = areaCode
+
+    const response = await this.client.post<{ phone_number: string }>('/create-phone-number', body)
+    const phoneNumber = response.data.phone_number
+
+    logger.info('Retell phone number provisioned', { phoneNumber, agentId })
+    return phoneNumber
   }
 
   async createOutboundAgent(config: OutboundAgentConfig): Promise<{ agentId: string }> {
     const llmId = await this.createLlm(config.prompt, config.firstSentence)
 
     const response = await this.client.post<RetellAgentResponse>('/create-agent', {
-      llm_websocket_url: `wss://api.retellai.com/retell-llm/llm-websocket/${llmId}`,
+      response_engine: { type: 'retell-llm', llm_id: llmId },
       agent_name: `${config.businessName} — Outbound`,
-      voice_id: config.voice || 'eleven_labs_english_male_adam',
+      voice_id: config.voice || '11labs-Noah',
       language: 'en-US',
       responsiveness: 1,
       interruption_sensitivity: 1,
@@ -166,7 +165,7 @@ export class VoiceService {
     const from = fromNumber || process.env['TWILIO_OUTBOUND_NUMBER']
     if (!from) throw new Error('No outbound number provided and TWILIO_OUTBOUND_NUMBER not set')
 
-    const response = await this.client.post('/create-call', {
+    const response = await this.client.post('/v2/create-phone-call', {
       from_number: from,
       to_number: toNumber,
       override_agent_id: agentId,
@@ -179,7 +178,7 @@ export class VoiceService {
   }
 
   async getCallTranscript(callId: string): Promise<CallTranscript> {
-    const response = await this.client.get(`/get-call/${callId}`)
+    const response = await this.client.get(`/v2/get-call/${callId}`)
     const call = response.data
 
     return {
@@ -197,7 +196,13 @@ export class VoiceService {
     }
   }
 
-  async provisionNumber(areaCode?: string): Promise<string> {
+  // Provision a phone number via Twilio for any country, attach it to the SIP trunk,
+  // then import it into Retell so inbound calls route to the given agent.
+  async provisionTwilioNumber(
+    agentId: string,
+    nickname: string,
+    countryCode = 'AU'
+  ): Promise<string> {
     const accountSid = process.env['TWILIO_ACCOUNT_SID']
     const authToken = process.env['TWILIO_AUTH_TOKEN']
     const trunkSid = process.env['TWILIO_SIP_TRUNK_SID']
@@ -208,27 +213,56 @@ export class VoiceService {
 
     const twilioClient = twilio(accountSid, authToken)
 
-    const searchParams: Record<string, unknown> = { limit: 1, voiceEnabled: true }
-    if (areaCode) searchParams.areaCode = areaCode
-
-    const available = await twilioClient.availablePhoneNumbers('US').local.list(searchParams)
+    // Search for a local voice-enabled number in the target country
+    const available = await twilioClient
+      .availablePhoneNumbers(countryCode)
+      .local.list({ limit: 1, voiceEnabled: true })
 
     if (!available.length) {
-      throw new Error(`No available numbers${areaCode ? ` for area code ${areaCode}` : ''}`)
+      throw new Error(`No available ${countryCode} numbers`)
     }
 
+    // Some countries (e.g. AU) require a verified address SID on purchase.
+    // Use the env var if set, otherwise fetch the first address on the account.
+    let addressSid = process.env['TWILIO_ADDRESS_SID']
+    if (!addressSid) {
+      const addresses = await twilioClient.addresses.list({ limit: 1 })
+      if (addresses.length) addressSid = addresses[0].sid
+    }
+
+    // Purchase the number
     const purchased = await twilioClient.incomingPhoneNumbers.create({
-      phoneNumber: available[0].phoneNumber
+      phoneNumber: available[0].phoneNumber,
+      ...(addressSid ? { addressSid } : {})
     })
 
+    // Attach it to the SIP trunk so Twilio routes calls outbound via Retell
     await twilioClient.trunking.v1.trunks(trunkSid).phoneNumbers.create({
       phoneNumberSid: purchased.sid
     })
 
-    logger.info('Twilio number provisioned and attached to SIP trunk', {
+    // Fetch the trunk's SIP domain name — used as Retell's termination_uri
+    const trunk = await twilioClient.trunking.v1.trunks(trunkSid).fetch()
+    const terminationUri = trunk.domainName
+
+    logger.info('Twilio number purchased and attached to trunk', {
       phoneNumber: purchased.phoneNumber,
-      sid: purchased.sid,
-      trunkSid
+      countryCode,
+      trunkSid,
+      terminationUri
+    })
+
+    // Import the Twilio number into Retell and bind the agent
+    await this.client.post('/import-phone-number', {
+      phone_number: purchased.phoneNumber,
+      termination_uri: terminationUri,
+      nickname,
+      inbound_agents: [{ agent_id: agentId, weight: 1 }]
+    })
+
+    logger.info('Twilio number imported into Retell', {
+      phoneNumber: purchased.phoneNumber,
+      agentId
     })
 
     return purchased.phoneNumber

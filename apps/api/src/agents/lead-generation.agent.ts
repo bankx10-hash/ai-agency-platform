@@ -11,6 +11,7 @@ export interface LeadGenerationConfig {
   high_score_threshold: number
   locationId: string
   businessName: string
+  api_key?: string
 }
 
 export class LeadGenerationAgent extends BaseAgent {
@@ -69,10 +70,11 @@ ${config.scoring_prompt || ''}`
         webhookUrl: `${process.env['N8N_BASE_URL']}/webhook/lead-gen-${clientId}`,
         pipelineId: config.pipeline_id,
         businessName: config.businessName,
-        icpDescription: config.icp_description
+        icpDescription: config.icp_description,
+        apiKey: config.api_key as string || ''
       })
     } catch (error) {
-      logger.warn('N8N workflow deployment failed, creating record without workflow', { clientId, error })
+      logger.warn('N8N workflow deployment failed, creating record without workflow', { clientId, error: String(error) })
     }
 
     const deployment = await this.createDeploymentRecord(

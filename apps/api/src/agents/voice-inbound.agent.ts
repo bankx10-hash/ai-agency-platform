@@ -12,9 +12,9 @@ export interface VoiceInboundConfig {
   escalation_number: string
   voice_id: string
   calendar_id: string
-  twilio_phone_number: string
   locationId: string
   businessName: string
+  api_key?: string
 }
 
 export class VoiceInboundAgent extends BaseAgent {
@@ -73,17 +73,15 @@ Respond naturally as if in a real phone conversation.`
     try {
       const voiceResult = await voiceService.createInboundAgent({
         prompt: voicePrompt,
-        voice: config.voice_id || 'eleven_labs_english_male_adam',
+        voice: config.voice_id || '11labs-Noah',
         firstSentence: config.greeting_script,
         clientId,
         businessName: config.businessName,
         transferNumber: config.escalation_number,
-        calendarWebhook: `${process.env['N8N_BASE_URL']}/webhook/voice-calendar-${clientId}`,
-        twilioPhoneNumber: config.twilio_phone_number
+        calendarWebhook: `${process.env['N8N_BASE_URL']}/webhook/voice-calendar-${clientId}`
       })
 
       retellAgentId = voiceResult.agentId
-      phoneNumber = voiceResult.phoneNumber
 
       logger.info('Retell inbound agent created', { clientId, retellAgentId, phoneNumber })
     } catch (error) {
@@ -100,10 +98,11 @@ Respond naturally as if in a real phone conversation.`
         webhookUrl: `${process.env['N8N_BASE_URL']}/webhook/voice-inbound-${clientId}`,
         phoneNumber,
         calendarId: config.calendar_id,
-        businessName: config.businessName
+        businessName: config.businessName,
+        apiKey: config.api_key as string || ''
       })
     } catch (error) {
-      logger.warn('N8N workflow deployment failed', { clientId, error })
+      logger.warn('N8N workflow deployment failed', { clientId, error: String(error) })
     }
 
     const deployment = await this.createDeploymentRecord(

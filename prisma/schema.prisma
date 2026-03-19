@@ -17,7 +17,6 @@ enum Plan {
 }
 
 enum CrmType {
-  GHL
   HUBSPOT
   SALESFORCE
   ZOHO

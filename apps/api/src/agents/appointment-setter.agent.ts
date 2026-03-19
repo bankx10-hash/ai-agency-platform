@@ -11,6 +11,7 @@ export interface AppointmentSetterConfig {
   sms_number: string
   locationId: string
   businessName: string
+  api_key?: string
 }
 
 export class AppointmentSetterAgent extends BaseAgent {
@@ -87,10 +88,11 @@ Respond with JSON:
         agentPrompt: followUpSequencePrompt,
         webhookUrl: `${process.env['N8N_BASE_URL']}/webhook/appointments-${clientId}`,
         calendarId: config.calendar_id,
-        businessName: config.businessName
+        businessName: config.businessName,
+        apiKey: config.api_key as string || ''
       })
     } catch (error) {
-      logger.warn('N8N workflow deployment failed', { clientId, error })
+      logger.warn('N8N workflow deployment failed', { clientId, error: String(error) })
     }
 
     const deployment = await this.createDeploymentRecord(

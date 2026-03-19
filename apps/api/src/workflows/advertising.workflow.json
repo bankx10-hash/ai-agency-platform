@@ -6,11 +6,19 @@
       "id": "daily-check",
       "name": "Daily Optimisation Check",
       "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1,
-      "position": [250, 300],
+      "typeVersion": 1.1,
+      "position": [
+        250,
+        300
+      ],
       "parameters": {
         "rule": {
-          "interval": [{ "field": "cronExpression", "expression": "0 7 * * *" }]
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 7 * * *"
+            }
+          ]
         }
       }
     },
@@ -19,17 +27,32 @@
       "name": "Fetch Meta Ad Stats",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [500, 300],
+      "position": [
+        500,
+        300
+      ],
       "parameters": {
         "method": "GET",
         "url": "https://graph.facebook.com/v18.0/act_{{META_AD_ACCOUNT_ID}}/insights",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "fields", "value": "adset_id,adset_name,spend,impressions,clicks,ctr,cpc,purchase_roas,conversions" },
-            { "name": "date_preset", "value": "yesterday" },
-            { "name": "level", "value": "adset" },
-            { "name": "access_token", "value": "{{META_ACCESS_TOKEN}}" }
+            {
+              "name": "fields",
+              "value": "adset_id,adset_name,spend,impressions,clicks,ctr,cpc,purchase_roas,conversions"
+            },
+            {
+              "name": "date_preset",
+              "value": "yesterday"
+            },
+            {
+              "name": "level",
+              "value": "adset"
+            },
+            {
+              "name": "access_token",
+              "value": "{{META_ACCESS_TOKEN}}"
+            }
           ]
         }
       }
@@ -39,13 +62,16 @@
       "name": "Refresh Google OAuth Token",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [500, 480],
+      "position": [
+        500,
+        480
+      ],
       "parameters": {
         "method": "POST",
         "url": "https://oauth2.googleapis.com/token",
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "{\"client_id\":\"={{$env.GOOGLE_ADS_CLIENT_ID}}\",\"client_secret\":\"={{$env.GOOGLE_ADS_CLIENT_SECRET}}\",\"refresh_token\":\"{{GOOGLE_REFRESH_TOKEN}}\",\"grant_type\":\"refresh_token\"}"
+        "specifyBody": "string",
+        "body": "{\"client_id\":\"{{GOOGLE_ADS_CLIENT_ID}}\",\"client_secret\":\"{{GOOGLE_ADS_CLIENT_SECRET}}\",\"refresh_token\":\"{{GOOGLE_REFRESH_TOKEN}}\",\"grant_type\":\"refresh_token\"}"
       }
     },
     {
@@ -53,21 +79,33 @@
       "name": "Fetch Google Ads Stats",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [750, 480],
+      "position": [
+        750,
+        480
+      ],
       "parameters": {
         "method": "POST",
         "url": "https://googleads.googleapis.com/v17/customers/{{GOOGLE_CUSTOMER_ID}}/googleAds:search",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "=Bearer {{$('Refresh Google OAuth Token').item.json.access_token}}" },
-            { "name": "developer-token", "value": "={{$env.GOOGLE_ADS_DEVELOPER_TOKEN}}" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Authorization",
+              "value": "=Bearer \" + ($('Refresh Google OAuth Token')?.all()?.[0]?.json?.access_token || 'no-token')"
+            },
+            {
+              "name": "developer-token",
+              "value": "{{GOOGLE_ADS_DEVELOPER_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "{\"query\":\"SELECT campaign.id, campaign.name, metrics.clicks, metrics.impressions, metrics.ctr, metrics.conversions, metrics.cost_micros, metrics.all_conversions_value FROM campaign WHERE segments.date DURING YESTERDAY AND campaign.status = 'ENABLED'\"}"
+        "specifyBody": "string",
+        "body": "{\"query\":\"SELECT campaign.id, campaign.name, metrics.clicks, metrics.impressions, metrics.ctr, metrics.conversions, metrics.cost_micros, metrics.all_conversions_value FROM campaign WHERE segments.date DURING YESTERDAY AND campaign.status = 'ENABLED'\"}"
       }
     },
     {
@@ -75,7 +113,10 @@
       "name": "Merge Meta + Google Stats",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1000, 380],
+      "position": [
+        1000,
+        380
+      ],
       "parameters": {
         "jsCode": "const metaData = $('Fetch Meta Ad Stats').all().map(i => i.json.data || []).flat();\nconst googleData = $('Fetch Google Ads Stats').all().map(i => i.json.results || []).flat();\nreturn [{ json: { metaInsights: metaData, googleInsights: googleData } }];"
       }
@@ -85,21 +126,34 @@
       "name": "Claude - Analyse Performance",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1250, 380],
+      "position": [
+        1250,
+        380
+      ],
       "parameters": {
         "method": "POST",
         "url": "https://api.anthropic.com/v1/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "x-api-key", "value": "={{$env.ANTHROPIC_API_KEY}}" },
-            { "name": "anthropic-version", "value": "2023-06-01" },
-            { "name": "content-type", "value": "application/json" }
+            {
+              "name": "x-api-key",
+              "value": "{{ANTHROPIC_API_KEY}}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":2048,\"system\":\"{{AGENT_PROMPT}}\",\"messages\":[{\"role\":\"user\",\"content\":\"Analyse this ad performance data (Meta + Google) and return JSON: \" + JSON.stringify($json)}]}"
+        "body": "={{ JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:2048,system:'{{AGENT_PROMPT}}',messages:[{role:'user',content:'Analyse this ad performance data (Meta + Google) and return JSON with fields: underperformingAdSets (array), underperformingCampaigns (array), newAdVariants (array), budgetAlerts (array of strings), recommendations (array of strings). Data: ' + JSON.stringify($json.body?.data || $json.metaInsights || $json.data || $json)}]}) }}",
+        "contentType": "raw",
+        "rawContentType": "application/json"
       }
     },
     {
@@ -107,7 +161,10 @@
       "name": "Parse Claude Output",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1500, 380],
+      "position": [
+        1500,
+        380
+      ],
       "parameters": {
         "jsCode": "const raw = items[0].json.content?.[0]?.text || '{}';\nlet analysis = {};\ntry {\n  analysis = JSON.parse(raw.replace(/```json\\n?|\\n?```/g, '').trim());\n} catch (e) {\n  analysis = { underperformingAdSets: [], underperformingCampaigns: [], newAdVariants: [], budgetAlerts: [], recommendations: [] };\n}\nreturn [{ json: analysis }];"
       }
@@ -117,7 +174,10 @@
       "name": "Extract Underperforming Meta Adsets",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1750, 200],
+      "position": [
+        1750,
+        200
+      ],
       "parameters": {
         "jsCode": "const adsets = items[0].json.underperformingAdSets || [];\nif (adsets.length === 0) return [];\nreturn adsets.map(a => ({ json: { adsetId: a.id, name: a.name } }));"
       }
@@ -127,15 +187,24 @@
       "name": "Pause Meta Adset",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [2000, 200],
+      "position": [
+        2000,
+        200
+      ],
       "parameters": {
         "method": "POST",
         "url": "=https://graph.facebook.com/v18.0/{{$json.adsetId}}",
         "sendQuery": true,
         "queryParameters": {
           "parameters": [
-            { "name": "status", "value": "PAUSED" },
-            { "name": "access_token", "value": "{{META_ACCESS_TOKEN}}" }
+            {
+              "name": "status",
+              "value": "PAUSED"
+            },
+            {
+              "name": "access_token",
+              "value": "{{META_ACCESS_TOKEN}}"
+            }
           ]
         }
       }
@@ -145,7 +214,10 @@
       "name": "Extract Underperforming Google Campaigns",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1750, 380],
+      "position": [
+        1750,
+        380
+      ],
       "parameters": {
         "jsCode": "const campaigns = items[0].json.underperformingCampaigns || [];\nif (campaigns.length === 0) return [];\nreturn campaigns.map(c => ({ json: { campaignId: c.campaignId, name: c.campaignName } }));"
       }
@@ -155,21 +227,33 @@
       "name": "Pause Google Campaign",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [2000, 380],
+      "position": [
+        2000,
+        380
+      ],
       "parameters": {
         "method": "POST",
         "url": "=https://googleads.googleapis.com/v17/customers/{{GOOGLE_CUSTOMER_ID}}/campaigns:mutate",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "=Bearer {{$('Refresh Google OAuth Token').item.json.access_token}}" },
-            { "name": "developer-token", "value": "={{$env.GOOGLE_ADS_DEVELOPER_TOKEN}}" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Authorization",
+              "value": "=Bearer \" + ($('Refresh Google OAuth Token')?.all()?.[0]?.json?.access_token || 'no-token')"
+            },
+            {
+              "name": "developer-token",
+              "value": "{{GOOGLE_ADS_DEVELOPER_TOKEN}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\"operations\":[{\"update\":{\"resourceName\":\"customers/{{GOOGLE_CUSTOMER_ID}}/campaigns/\" + $json.campaignId,\"status\":\"PAUSED\"},\"updateMask\":\"status\"}]}"
+        "specifyBody": "string",
+        "body": "={\"operations\":[{\"update\":{\"resourceName\":\"customers/{{GOOGLE_CUSTOMER_ID}}/campaigns/\" + $json.campaignId,\"status\":\"PAUSED\"},\"updateMask\":\"status\"}]}"
       }
     },
     {
@@ -177,21 +261,34 @@
       "name": "Claude - Generate New Ad Copy",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1750, 560],
+      "position": [
+        1750,
+        560
+      ],
       "parameters": {
         "method": "POST",
         "url": "https://api.anthropic.com/v1/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "x-api-key", "value": "={{$env.ANTHROPIC_API_KEY}}" },
-            { "name": "anthropic-version", "value": "2023-06-01" },
-            { "name": "content-type", "value": "application/json" }
+            {
+              "name": "x-api-key",
+              "value": "{{ANTHROPIC_API_KEY}}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":1024,\"system\":\"{{AGENT_PROMPT}}\",\"messages\":[{\"role\":\"user\",\"content\":\"Based on this analysis, generate 3 new ad copy variants for {{BUSINESS_NAME}}. Return JSON array: [{\\\"headline\\\":\\\"\\\",\\\"description\\\":\\\"\\\",\\\"cta\\\":\\\"\\\"}]. Keep headlines under 40 chars, descriptions under 125 chars. CTA must be a Meta call_to_action type (LEARN_MORE, SHOP_NOW, SIGN_UP, GET_QUOTE). Context: \" + JSON.stringify($json.recommendations)}]}"
+        "body": "={{ JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1024,system:'{{AGENT_PROMPT}}',messages:[{role:'user',content:'Based on this analysis, generate 3 new ad copy variants for {{BUSINESS_NAME}}. Return JSON array: [{\"headline\":\"\",\"description\":\"\",\"cta\":\"\"}]. Keep headlines under 40 chars, descriptions under 125 chars. CTA must be a Meta call_to_action type (LEARN_MORE, SHOP_NOW, SIGN_UP, GET_QUOTE). Context: ' + JSON.stringify($json.recommendations)}]}) }}",
+        "contentType": "raw",
+        "rawContentType": "application/json"
       }
     },
     {
@@ -199,7 +296,10 @@
       "name": "Parse New Ad Copy",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2000, 560],
+      "position": [
+        2000,
+        560
+      ],
       "parameters": {
         "jsCode": "const raw = items[0].json.content?.[0]?.text || '[]';\nlet variants = [];\ntry {\n  variants = JSON.parse(raw.replace(/```json\\n?|\\n?```/g, '').trim());\n} catch (e) {\n  return [];\n}\nif (!Array.isArray(variants) || variants.length === 0) return [];\n// Output one item per variant so the next node runs once per ad\nreturn variants.slice(0, 3).map(v => ({ json: v }));"
       }
@@ -209,13 +309,16 @@
       "name": "Create Meta Ad Creative",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [2250, 560],
+      "position": [
+        2250,
+        560
+      ],
       "parameters": {
         "method": "POST",
         "url": "https://graph.facebook.com/v18.0/act_{{META_AD_ACCOUNT_ID}}/adcreatives",
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\"name\":\"Auto \" + $json.headline,\"object_story_spec\":{\"page_id\":\"{{META_PAGE_ID}}\",\"link_data\":{\"link\":\"{{AD_LINK_URL}}\",\"message\":$json.description,\"name\":$json.headline,\"description\":$json.description,\"call_to_action\":{\"type\":$json.cta}}},\"access_token\":\"{{META_ACCESS_TOKEN}}\"}"
+        "specifyBody": "string",
+        "body": "={\"name\":\"Auto \" + $json.headline,\"object_story_spec\":{\"page_id\":\"{{META_PAGE_ID}}\",\"link_data\":{\"link\":\"{{AD_LINK_URL}}\",\"message\":$json.description,\"name\":$json.headline,\"description\":$json.description,\"call_to_action\":{\"type\":$json.cta}}},\"access_token\":\"{{META_ACCESS_TOKEN}}\"}"
       }
     },
     {
@@ -223,13 +326,16 @@
       "name": "Create Meta Ad",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [2500, 560],
+      "position": [
+        2500,
+        560
+      ],
       "parameters": {
         "method": "POST",
         "url": "https://graph.facebook.com/v18.0/act_{{META_AD_ACCOUNT_ID}}/ads",
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\"name\":\"Auto \" + $('Parse New Ad Copy').item.json.headline,\"adset_id\":\"{{META_DEFAULT_ADSET_ID}}\",\"creative\":{\"creative_id\":$json.id},\"status\":\"ACTIVE\",\"access_token\":\"{{META_ACCESS_TOKEN}}\"}"
+        "specifyBody": "string",
+        "body": "={\"name\":\"Auto \" + $('Parse New Ad Copy').item.json.headline,\"adset_id\":\"{{META_DEFAULT_ADSET_ID}}\",\"creative\":{\"creative_id\":$json.id},\"status\":\"ACTIVE\",\"access_token\":\"{{META_ACCESS_TOKEN}}\"}"
       }
     },
     {
@@ -237,116 +343,339 @@
       "name": "Check Budget Alerts",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1750, 740],
+      "position": [
+        1750,
+        740
+      ],
       "parameters": {
         "jsCode": "const alerts = items[0].json.budgetAlerts || [];\nif (alerts.length === 0) return [];\nreturn [{ json: { alerts, summary: alerts.join('\\n') } }];"
       }
     },
     {
       "id": "send-alert-email",
-      "name": "Send Alert Email via GHL",
+      "name": "Send Alert Email",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [2000, 740],
+      "position": [
+        2000,
+        740
+      ],
       "parameters": {
         "method": "POST",
-        "url": "={{$env.GHL_BASE_URL}}/conversations/messages",
+        "url": "{{API_URL}}/clients/{{CLIENT_ID}}/crm/email",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "Bearer ={{$env.GHL_API_KEY}}" },
-            { "name": "Version", "value": "2021-07-28" }
+            {
+              "name": "Authorization",
+              "value": "Bearer {{API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\"locationId\":\"{{LOCATION_ID}}\",\"type\":\"Email\",\"subject\":\"Ad Performance Alert — Action Required\",\"body\":\"Your advertising agent detected budget alerts:\\n\\n\" + $json.summary}"
+        "specifyBody": "string",
+        "body": "={\"locationId\":\"{{LOCATION_ID}}\",\"type\":\"Email\",\"subject\":\"Ad Performance Alert \u2014 Action Required\",\"body\":\"Your advertising agent detected budget alerts:\\n\\n\" + $json.summary}"
       }
     },
     {
       "id": "budget-alert-webhook",
       "name": "Budget Alert Webhook",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
-      "position": [250, 560],
+      "typeVersion": 2,
+      "position": [
+        250,
+        560
+      ],
       "parameters": {
+        "httpMethod": "POST",
         "path": "ads-alert-{{CLIENT_ID}}",
         "responseMode": "onReceived"
-      },
-      "webhookId": "ads-alert-{{CLIENT_ID}}"
+      }
     },
     {
       "id": "send-budget-alert",
       "name": "Send Budget Alert Email",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [500, 560],
+      "position": [
+        500,
+        560
+      ],
       "parameters": {
         "method": "POST",
-        "url": "={{$env.GHL_BASE_URL}}/conversations/messages",
+        "url": "{{API_URL}}/clients/{{CLIENT_ID}}/crm/email",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "Bearer ={{$env.GHL_API_KEY}}" },
-            { "name": "Version", "value": "2021-07-28" }
+            {
+              "name": "Authorization",
+              "value": "Bearer {{API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\"locationId\":\"{{LOCATION_ID}}\",\"type\":\"Email\",\"subject\":\"Ad Budget Alert\",\"body\":\"Budget alert received: \" + JSON.stringify($json)}"
+        "specifyBody": "string",
+        "body": "={\"locationId\":\"{{LOCATION_ID}}\",\"type\":\"Email\",\"subject\":\"Ad Budget Alert\",\"body\":\"Budget alert received: \" + JSON.stringify($json)}"
+      }
+    },
+    {
+      "id": "seed-data-advertising",
+      "name": "Seed Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        375,
+        300
+      ],
+      "parameters": {
+        "mode": "manual",
+        "duplicateItem": false,
+        "assignments": {
+          "assignments": [
+            {
+              "id": "seed-test",
+              "name": "test",
+              "value": true,
+              "type": "boolean"
+            },
+            {
+              "id": "seed-timestamp",
+              "name": "timestamp",
+              "value": "={{ $now }}",
+              "type": "string"
+            },
+            {
+              "id": "seed-clientId",
+              "name": "clientId",
+              "value": "{{CLIENT_ID}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "test-trigger-advertising",
+      "name": "Test Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        250,
+        150
+      ],
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "test-advertising-{{CLIENT_ID}}",
+        "responseMode": "onReceived",
+        "responseData": "allEntries"
       }
     }
   ],
   "connections": {
     "Daily Optimisation Check": {
-      "main": [[
-        { "node": "Fetch Meta Ad Stats", "type": "main", "index": 0 },
-        { "node": "Refresh Google OAuth Token", "type": "main", "index": 0 }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Seed Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Fetch Meta Ad Stats": {
-      "main": [[{ "node": "Merge Meta + Google Stats", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Merge Meta + Google Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Refresh Google OAuth Token": {
-      "main": [[{ "node": "Fetch Google Ads Stats", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Fetch Google Ads Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Fetch Google Ads Stats": {
-      "main": [[{ "node": "Merge Meta + Google Stats", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Merge Meta + Google Stats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Merge Meta + Google Stats": {
-      "main": [[{ "node": "Claude - Analyse Performance", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Claude - Analyse Performance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Claude - Analyse Performance": {
-      "main": [[{ "node": "Parse Claude Output", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Parse Claude Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Parse Claude Output": {
-      "main": [[
-        { "node": "Extract Underperforming Meta Adsets", "type": "main", "index": 0 },
-        { "node": "Extract Underperforming Google Campaigns", "type": "main", "index": 0 },
-        { "node": "Claude - Generate New Ad Copy", "type": "main", "index": 0 },
-        { "node": "Check Budget Alerts", "type": "main", "index": 0 }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Extract Underperforming Meta Adsets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Underperforming Google Campaigns",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Claude - Generate New Ad Copy",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Check Budget Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Extract Underperforming Meta Adsets": {
-      "main": [[{ "node": "Pause Meta Adset", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Pause Meta Adset",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Extract Underperforming Google Campaigns": {
-      "main": [[{ "node": "Pause Google Campaign", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Pause Google Campaign",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Claude - Generate New Ad Copy": {
-      "main": [[{ "node": "Parse New Ad Copy", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Parse New Ad Copy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Parse New Ad Copy": {
-      "main": [[{ "node": "Create Meta Ad Creative", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Create Meta Ad Creative",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Create Meta Ad Creative": {
-      "main": [[{ "node": "Create Meta Ad", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Create Meta Ad",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Check Budget Alerts": {
-      "main": [[{ "node": "Send Alert Email via GHL", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Send Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Budget Alert Webhook": {
-      "main": [[{ "node": "Send Budget Alert Email", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Send Budget Alert Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Seed Data": {
+      "main": [
+        [
+          {
+            "node": "Fetch Meta Ad Stats",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Refresh Google OAuth Token",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Trigger": {
+      "main": [
+        [
+          {
+            "node": "Claude - Analyse Performance",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {

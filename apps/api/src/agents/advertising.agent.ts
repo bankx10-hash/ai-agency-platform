@@ -17,6 +17,7 @@ export interface AdvertisingAgentConfig {
   alert_email: string
   locationId: string
   businessName: string
+  api_key?: string
 }
 
 interface AnalysisResult {
@@ -203,10 +204,11 @@ Respond with a JSON object:
         googleCustomerId: config.google_ads_customer_id || '',
         googleRefreshToken: config.google_refresh_token || '',
         targetRoas: config.target_roas.toString(),
-        businessName: config.businessName
+        businessName: config.businessName,
+        apiKey: config.api_key as string || ''
       })
     } catch (error) {
-      logger.warn('N8N workflow deployment failed', { clientId, error })
+      logger.warn('N8N workflow deployment failed', { clientId, error: String(error) })
     }
 
     const deployment = await this.createDeploymentRecord(

@@ -11,6 +11,7 @@ export interface ClientServicesConfig {
   upsell_triggers: string[]
   locationId: string
   businessName: string
+  api_key?: string
 }
 
 export class ClientServicesAgent extends BaseAgent {
@@ -95,10 +96,11 @@ Always be warm, proactive, and solutions-focused. You genuinely care about clien
         locationId: config.locationId,
         agentPrompt: clientSuccessPrompt,
         webhookUrl: `${process.env['N8N_BASE_URL']}/webhook/client-services-${clientId}`,
-        businessName: config.businessName
+        businessName: config.businessName,
+        apiKey: config.api_key as string || ''
       })
     } catch (error) {
-      logger.warn('N8N workflow deployment failed', { clientId, error })
+      logger.warn('N8N workflow deployment failed', { clientId, error: String(error) })
     }
 
     const deployment = await this.createDeploymentRecord(

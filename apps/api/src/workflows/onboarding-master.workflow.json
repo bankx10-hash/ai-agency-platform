@@ -6,33 +6,44 @@
       "id": "onboarding-trigger",
       "name": "Onboarding Trigger",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
-      "position": [250, 300],
+      "typeVersion": 2,
+      "position": [
+        250,
+        300
+      ],
       "parameters": {
         "path": "onboarding-{{CLIENT_ID}}",
         "responseMode": "onReceived"
-      },
-      "webhookId": "onboarding-{{CLIENT_ID}}"
+      }
     },
     {
       "id": "create-ghl-account",
       "name": "Create GHL Sub-Account",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [500, 300],
+      "position": [
+        500,
+        300
+      ],
       "parameters": {
         "method": "POST",
-        "url": "={{$env.GHL_BASE_URL}}/locations",
+        "url": "{{GHL_BASE_URL}}/locations",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "Bearer {{$env.GHL_API_KEY}}" },
-            { "name": "Version", "value": "2021-07-28" }
+            {
+              "name": "Authorization",
+              "value": "Bearer {{GHL_API_KEY}}"
+            },
+            {
+              "name": "Version",
+              "value": "2021-07-28"
+            }
           ]
         },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\"name\":$json.businessName,\"email\":$json.email,\"companyId\":\"{{$env.GHL_AGENCY_ID}}\"}"
+        "specifyBody": "string",
+        "body": "={\"name\":$json.businessName,\"email\":$json.email,\"companyId\":\"{{{{GHL_AGENCY_ID}}}}\"}"
       }
     },
     {
@@ -40,13 +51,29 @@
       "name": "Update Client in DB",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [750, 300],
+      "position": [
+        750,
+        300
+      ],
       "parameters": {
         "method": "PATCH",
-        "url": "http://api:4000/clients/{{CLIENT_ID}}",
+        "url": "{{API_URL}}/clients/{{CLIENT_ID}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\"ghlLocationId\":$json.location.id}"
+        "specifyBody": "string",
+        "body": "={\"ghlLocationId\":$json.location.id}"
       }
     },
     {
@@ -54,13 +81,29 @@
       "name": "Trigger Agent Deployment",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1000, 300],
+      "position": [
+        1000,
+        300
+      ],
       "parameters": {
         "method": "POST",
-        "url": "http://api:4000/onboarding/{{CLIENT_ID}}/deploy-agents",
+        "url": "{{API_URL}}/clients/{{CLIENT_ID}}/deploy-agents",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "={\"clientId\":\"{{CLIENT_ID}}\",\"locationId\":$json.ghlLocationId}"
+        "specifyBody": "string",
+        "body": "={\"clientId\":\"{{CLIENT_ID}}\",\"locationId\":$json.ghlLocationId}"
       }
     },
     {
@@ -68,13 +111,29 @@
       "name": "Send Welcome Email",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1250, 300],
+      "position": [
+        1250,
+        300
+      ],
       "parameters": {
         "method": "POST",
-        "url": "http://api:4000/onboarding/{{CLIENT_ID}}/send-welcome",
+        "url": "{{API_URL}}/clients/{{CLIENT_ID}}/send-welcome",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "{\"clientId\":\"{{CLIENT_ID}}\"}"
+        "specifyBody": "string",
+        "body": "{\"clientId\":\"{{CLIENT_ID}}\"}"
       }
     },
     {
@@ -82,31 +141,87 @@
       "name": "Mark Onboarding Complete",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1500, 300],
+      "position": [
+        1500,
+        300
+      ],
       "parameters": {
         "method": "POST",
-        "url": "http://api:4000/onboarding/{{CLIENT_ID}}/complete",
+        "url": "{{API_URL}}/clients/{{CLIENT_ID}}/onboarding/complete",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
         "sendBody": true,
-        "specifyBody": "json",
-        "jsonBody": "{\"clientId\":\"{{CLIENT_ID}}\"}"
+        "specifyBody": "string",
+        "body": "{\"clientId\":\"{{CLIENT_ID}}\"}"
       }
     }
   ],
   "connections": {
     "Onboarding Trigger": {
-      "main": [[{ "node": "Create GHL Sub-Account", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Create GHL Sub-Account",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Create GHL Sub-Account": {
-      "main": [[{ "node": "Update Client in DB", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Update Client in DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Update Client in DB": {
-      "main": [[{ "node": "Trigger Agent Deployment", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Trigger Agent Deployment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Trigger Agent Deployment": {
-      "main": [[{ "node": "Send Welcome Email", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Send Welcome Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Send Welcome Email": {
-      "main": [[{ "node": "Mark Onboarding Complete", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Mark Onboarding Complete",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {

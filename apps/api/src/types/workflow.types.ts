@@ -10,6 +10,17 @@ export interface WorkflowDeployConfig {
   businessName?: string
   icpDescription?: string
   platforms?: string
+  bufferToken?: string
+  metaAdAccountId?: string
+  metaAccessToken?: string
+  metaPageId?: string
+  metaDefaultAdsetId?: string
+  googleRefreshToken?: string
+  googleAdsCustomerId?: string
+  adLinkUrl?: string
+  paymentLink?: string
+  contractLink?: string
+  retellAgentId?: string
   [key: string]: unknown
 }
 
@@ -17,6 +28,12 @@ export interface WorkflowDeployResult {
   workflowId: string
   active: boolean
   webhookUrl: string
+  testResult?: {
+    success: boolean
+    executionId?: string
+    status?: string
+    error?: string
+  }
 }
 
 export interface WorkflowStatus {

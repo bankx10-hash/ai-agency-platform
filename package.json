@@ -13,10 +13,16 @@
     "db:push": "prisma db push"
   },
   "devDependencies": {
+    "@prisma/client": "^6.6.0",
     "concurrently": "^8.2.2",
+    "prisma": "^6.6.0",
     "typescript": "^5.3.3"
   },
   "overrides": {
     "@types/googleapis": "npm:@types/node@^20"
+  },
+  "dependencies": {
+    "next": "14.2.35",
+    "nodemailer": "8.0.2"
   }
 }

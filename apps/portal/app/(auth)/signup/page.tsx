@@ -28,7 +28,12 @@ export default function SignupPage() {
     setError('')
 
     try {
-      const response = await axios.post(`${API_URL}/auth/register`, form)
+      // TEST MODE: append timestamp so same email can register multiple times
+      const testEmail = form.email.includes('+test')
+        ? form.email
+        : form.email.replace('@', `+test${Date.now()}@`)
+
+      const response = await axios.post(`${API_URL}/auth/register`, { ...form, email: testEmail })
       const { clientId, token } = response.data
 
       localStorage.setItem('token', token)

@@ -27,6 +27,8 @@ export interface SocialMediaAgentConfig {
   // TikTok Content Posting API
   tiktok_access_token?: string
   tiktok_open_id?: string            // TikTok user open_id from OAuth
+
+  api_key?: string
 }
 
 // Virality frameworks per platform
@@ -260,10 +262,11 @@ Each week is an array of post objects. Plan ${config.posting_frequency} per day.
         agentPrompt: contentCalendar,
         webhookUrl: `${process.env['API_BASE_URL']}/webhooks/social/${clientId}`,
         businessName: config.businessName,
-        platforms: config.platforms.join(',')
+        platforms: config.platforms.join(','),
+        apiKey: config.api_key as string || ''
       })
     } catch (error) {
-      logger.warn('N8N workflow deployment failed, agent will run via direct API calls', { clientId, error })
+      logger.warn('N8N workflow deployment failed, agent will run via direct API calls', { clientId, error: String(error) })
     }
 
     const deployment = await this.createDeploymentRecord(

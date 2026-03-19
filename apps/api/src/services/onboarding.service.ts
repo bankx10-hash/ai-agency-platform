@@ -1,14 +1,14 @@
-import { prisma, Prisma, CrmType } from '../lib/prisma'
+import { prisma, Prisma } from '../lib/prisma'
 import { n8nService } from './n8n.service'
 import { voiceService } from './voice.service'
 import { emailService } from './email.service'
 import { crmService } from './crm/crm.service'
-import { GHLProvider } from './crm/providers/ghl.provider'
 import { encryptJSON } from '../utils/encrypt'
 import { logger } from '../utils/logger'
 import { AgentType, AgentStatus, PLANS } from '../types/agent.types'
 import { Plan } from '../types/client.types'
 import { AGENT_REGISTRY } from '../agents'
+import { generateServiceSecret } from '../middleware/auth'
 
 export class OnboardingService {
   async runOnboarding(clientId: string): Promise<void> {
@@ -52,35 +52,21 @@ export class OnboardingService {
     businessName: string
     email: string
     phone?: string | null
-    crmType: CrmType
+    crmType: string
   }): Promise<{ locationId: string }> {
     try {
-      if (client.crmType === CrmType.GHL) {
-        const ghl = new GHLProvider({ locationId: '', apiKey: process.env['GHL_API_KEY'] })
-        const { locationId } = await ghl.createSubAccount({
-          name: client.businessName,
-          email: client.email,
-          phone: client.phone || undefined
-        })
-
-        await prisma.client.update({
-          where: { id: client.id },
-          data: { ghlLocationId: locationId, ghlSubAccountId: locationId, crmAccountId: locationId }
-        })
-
-        logger.info('GHL sub-account created', { clientId: client.id, locationId })
-        return { locationId }
-      }
-
-      // For HubSpot, Salesforce, Zoho — client connects their existing account during onboarding
-      // crmAccountId is set when they connect credentials in onboarding step 2
-      const record = await prisma.client.findUnique({ where: { id: client.id }, select: { crmAccountId: true } })
-      const locationId = record?.crmAccountId || client.id
+      // Use the crmAccountId/ghlLocationId already set during onboarding connect step,
+      // or fall back to clientId as a unique location identifier
+      const record = await prisma.client.findUnique({
+        where: { id: client.id },
+        select: { crmAccountId: true, ghlLocationId: true }
+      })
+      const locationId = record?.ghlLocationId || record?.crmAccountId || client.id
 
       logger.info('CRM account linked', { clientId: client.id, crmType: client.crmType, locationId })
       return { locationId }
     } catch (error) {
-      logger.error('Failed to provision CRM account', { clientId: client.id, crmType: client.crmType, error })
+      logger.error('Failed to provision CRM account', { clientId: client.id, crmType: client.crmType, error: error instanceof Error ? error.message : String(error) })
       throw error
     }
   }
@@ -104,6 +90,20 @@ export class OnboardingService {
 
     logger.info('Deploying agents for plan', { clientId, plan, agentCount: agentTypes.length })
 
+    // Generate or reuse a non-expiring service secret for this client
+    const existing = await prisma.client.findUnique({
+      where: { id: clientId },
+      select: { serviceSecret: true }
+    })
+    let serviceSecret = existing?.serviceSecret ?? null
+    if (!serviceSecret) {
+      serviceSecret = generateServiceSecret()
+      await prisma.client.update({
+        where: { id: clientId },
+        data: { serviceSecret }
+      })
+    }
+
     for (const agentType of agentTypes) {
       try {
         const AgentClass = AGENT_REGISTRY[agentType]
@@ -118,14 +118,15 @@ export class OnboardingService {
           locationId,
           client.businessName,
           clientData.businessDescription,
-          clientData.icpDescription
+          clientData.icpDescription,
+          serviceSecret
         )
 
         await agent.deploy(clientId, defaultConfig)
 
         logger.info('Agent deployed', { clientId, agentType })
       } catch (error) {
-        logger.error('Failed to deploy agent', { clientId, agentType, error })
+        logger.error('Failed to deploy agent', { clientId, agentType, error: error instanceof Error ? error.message : String(error) })
         await prisma.agentDeployment.create({
           data: {
             clientId,
@@ -144,11 +145,13 @@ export class OnboardingService {
     locationId: string,
     businessName: string,
     businessDescription?: string,
-    icpDescription?: string
+    icpDescription?: string,
+    serviceToken?: string
   ): Record<string, unknown> {
     const baseConfig = {
       locationId,
-      businessName
+      businessName,
+      api_key: serviceToken || ''
     }
 
     const resolvedBusinessDescription = businessDescription || `${businessName} provides excellent products and services`
@@ -210,7 +213,7 @@ export class OnboardingService {
       },
       [AgentType.VOICE_INBOUND]: {
         ...baseConfig,
-        greeting_script: `Thank you for calling ${businessName}. How can I help you today? ${resolvedBusinessDescription}`,
+        greeting_script: `Thank you for calling ${businessName}. How can I help you today?`,
         qualification_questions: [
           'What brings you in today?',
           'Have you worked with us before?',
@@ -218,7 +221,7 @@ export class OnboardingService {
         ],
         faq_knowledge_base: `${businessName} FAQs`,
         escalation_number: '',
-        voice_id: 'nat',
+        voice_id: '11labs-Noah',
         calendar_id: ''
       },
       [AgentType.VOICE_OUTBOUND]: {
@@ -293,17 +296,30 @@ export class OnboardingService {
       try {
         const config = agent.config as Record<string, unknown>
 
-        const twilioPhoneNumber = await voiceService.provisionNumber()
-
-        const { agentId, phoneNumber } = await voiceService.createInboundAgent({
+        const { agentId } = await voiceService.createInboundAgent({
           prompt: config.greeting_script as string || `Thank you for calling ${businessName}. How can I help?`,
-          voice: config.voice_id as string || 'eleven_labs_english_male_adam',
+          voice: config.voice_id as string || '11labs-Noah',
           firstSentence: `Thank you for calling ${businessName}. How can I help you today?`,
-          twilioPhoneNumber,
           clientId,
           businessName,
           transferNumber: config.escalation_number as string || undefined
         })
+
+        if (process.env['VOICE_PROVISION_NUMBERS'] === 'false') {
+          logger.info('Phone number provisioning skipped (VOICE_PROVISION_NUMBERS=false)', { clientId })
+          continue
+        }
+
+        const voiceCountry = process.env['VOICE_NUMBER_COUNTRY'] || 'US'
+        const hasTwilio = !!(
+          process.env['TWILIO_ACCOUNT_SID'] &&
+          process.env['TWILIO_AUTH_TOKEN'] &&
+          process.env['TWILIO_SIP_TRUNK_SID']
+        )
+
+        const phoneNumber = (hasTwilio && voiceCountry !== 'US')
+          ? await voiceService.provisionTwilioNumber(agentId, `${businessName} Inbound`, voiceCountry)
+          : await voiceService.provisionRetellNumber(agentId, `${businessName} Inbound`)
 
         await prisma.agentDeployment.update({
           where: { id: agent.id },
@@ -338,7 +354,10 @@ export class OnboardingService {
 
         logger.info('Voice number assigned', { clientId, phoneNumber, agentId })
       } catch (error) {
-        logger.error('Failed to assign voice number', { clientId, agentId: agent.id, error })
+        const errMsg = error instanceof Error ? error.message : String(error)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const errData = (error as any)?.response?.data || (error as any)?.response?.status || errMsg
+        logger.error('Failed to assign voice number', { clientId, agentId: agent.id, error: errMsg, detail: errData })
       }
     }
   }
@@ -350,7 +369,7 @@ export class OnboardingService {
       await emailService.sendWelcomeEmail(email, businessName, portalUrl)
       logger.info('Welcome email sent', { email, businessName })
     } catch (error) {
-      logger.error('Failed to send welcome email', { email, error })
+      logger.error('Failed to send welcome email', { email, error: error instanceof Error ? error.message : String(error) })
     }
   }
 
