@@ -21,6 +21,7 @@ enum CrmType {
   HUBSPOT
   SALESFORCE
   ZOHO
+  NONE
 }
 
 enum ClientStatus {
@@ -65,12 +66,13 @@ model Client {
   stripeSubId         String?
   plan                Plan             @default(STARTER)
   status              ClientStatus     @default(PENDING)
-  crmType             CrmType          @default(GHL)
+  crmType             CrmType          @default(NONE)
   crmAccountId        String?
   ghlSubAccountId     String?
   ghlLocationId       String?
   businessDescription String?
   icpDescription      String?
+  serviceSecret       String?          @unique
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
   agents              AgentDeployment[]
@@ -109,4 +111,10 @@ model Onboarding {
   status      OnboardingStatus @default(IN_PROGRESS)
   completedAt DateTime?
   data        Json
+}
+
+model SystemConfig {
+  key       String   @id
+  value     String
+  updatedAt DateTime @updatedAt
 }
