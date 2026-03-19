@@ -75,7 +75,7 @@ router.post('/test-onboarding', async (req: Request, res: Response) => {
       businessName,
       plan,
       status: 'PENDING',
-      crmType: CrmType.GHL,
+      crmType: CrmType.NONE,
       businessDescription,
       icpDescription,
       passwordHash: 'test-only',

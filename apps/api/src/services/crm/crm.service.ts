@@ -18,13 +18,6 @@ export class CRMService {
 
     const crmType = client.crmType
 
-    if (crmType === CrmType.GHL) {
-      return new GHLProvider({
-        locationId: client.ghlLocationId || '',
-        apiKey: process.env['GHL_API_KEY']
-      })
-    }
-
     const credRecord = await prisma.clientCredential.findFirst({
       where: { clientId, service: crmType.toLowerCase() }
     })
