@@ -72,7 +72,7 @@ router.post('/start', async (req: Request, res: Response): Promise<void> => {
           type: 'exponential',
           delay: 5000
         },
-        jobId: `onboarding-${clientId}`
+        jobId: `onboarding-${clientId}-${Date.now()}`
       }
     )
 
@@ -140,6 +140,16 @@ router.post('/:clientId/connect-crm', authMiddleware, async (req: AuthRequest, r
 
     const { crmType, apiKey, locationId } = parsed.data
 
+    // Map frontend crmType string to Prisma enum value
+    const crmTypeMap: Record<string, string> = {
+      gohighlevel: 'GHL',
+      hubspot: 'HUBSPOT',
+      salesforce: 'SALESFORCE',
+      zoho: 'ZOHO',
+      none: 'NONE'
+    }
+    const prismaClientCrmType = crmTypeMap[crmType] || 'NONE'
+
     if (crmType !== 'none' && apiKey) {
       const credPayload: Record<string, string> = { crmType, apiKey }
 
@@ -154,7 +164,12 @@ router.post('/:clientId/connect-crm', authMiddleware, async (req: AuthRequest, r
         // Persist locationId directly on the Client record so agents can use it
         await prisma.client.update({
           where: { id: clientId },
-          data: { ghlLocationId: locationId }
+          data: { ghlLocationId: locationId, crmType: prismaClientCrmType as any }
+        })
+      } else {
+        await prisma.client.update({
+          where: { id: clientId },
+          data: { crmType: prismaClientCrmType as any }
         })
       }
 
@@ -170,16 +185,18 @@ router.post('/:clientId/connect-crm', authMiddleware, async (req: AuthRequest, r
           credentials: encryptedCreds
         }
       })
+    } else {
+      // Even if no API key, update the crmType selection
+      await prisma.client.update({
+        where: { id: clientId },
+        data: { crmType: prismaClientCrmType as any }
+      })
     }
 
-    await prisma.onboarding.update({
+    await prisma.onboarding.upsert({
       where: { clientId },
-      data: {
-        data: {
-          crmConnected: true,
-          crmType
-        }
-      }
+      update: { data: { crmConnected: true, crmType } },
+      create: { clientId, step: 1, status: 'IN_PROGRESS', data: { crmConnected: true, crmType } }
     })
 
     logger.info('CRM connected', { clientId, crmType })
