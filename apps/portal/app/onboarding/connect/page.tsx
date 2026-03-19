@@ -25,6 +25,8 @@ export default function ConnectPage() {
     icpDescription: '',
     crmType: 'none' as 'hubspot' | 'salesforce' | 'zoho' | 'none',
     crmApiKey: '',
+    hubspotAccessToken: '',
+    hubspotPortalId: '',
     linkedinCookie: '',
     // Social media platform credentials
     metaPageId: '',
@@ -68,7 +70,9 @@ export default function ConnectPage() {
         `${API_URL}/onboarding/${clientId}/connect-crm`,
         {
           crmType: form.crmType,
-          apiKey: form.crmApiKey
+          ...(form.crmType === 'hubspot'
+            ? { accessToken: form.hubspotAccessToken, portalId: form.hubspotPortalId }
+            : { apiKey: form.crmApiKey })
         },
         { headers: { Authorization: `Bearer ${token}` } }
       )
@@ -205,7 +209,37 @@ export default function ConnectPage() {
                 <option value="zoho">Zoho CRM</option>
               </select>
 
-              {form.crmType !== 'none' && (
+              {form.crmType === 'hubspot' && (
+                <div className="space-y-3 p-4 bg-orange-50 border border-orange-200 rounded-xl">
+                  <p className="text-xs font-semibold text-orange-700">HubSpot — Settings → Integrations → Private Apps → Create app</p>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Private App Access Token <span className="text-gray-400 font-normal">(starts with pat-na1-...)</span>
+                    </label>
+                    <input
+                      type="password"
+                      value={form.hubspotAccessToken}
+                      onChange={e => update('hubspotAccessToken', e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition text-gray-900"
+                      placeholder="pat-na1-..."
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Portal ID <span className="text-gray-400 font-normal">(number in your HubSpot URL)</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={form.hubspotPortalId}
+                      onChange={e => update('hubspotPortalId', e.target.value)}
+                      className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none transition text-gray-900"
+                      placeholder="12345678"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {form.crmType !== 'none' && form.crmType !== 'hubspot' && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     {form.crmType.charAt(0).toUpperCase() + form.crmType.slice(1)} API Key

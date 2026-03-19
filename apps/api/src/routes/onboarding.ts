@@ -16,7 +16,9 @@ const startOnboardingSchema = z.object({
 
 const connectCRMSchema = z.object({
   crmType: z.enum(['hubspot', 'salesforce', 'zoho', 'none']),
-  apiKey: z.string().optional()
+  apiKey: z.string().optional(),
+  accessToken: z.string().optional(),
+  portalId: z.string().optional()
 })
 
 const connectGmailSchema = z.object({
@@ -137,7 +139,7 @@ router.post('/:clientId/connect-crm', authMiddleware, async (req: AuthRequest, r
       return
     }
 
-    const { crmType, apiKey } = parsed.data
+    const { crmType, apiKey, accessToken, portalId } = parsed.data
 
     const crmTypeMap: Record<string, string> = {
       hubspot: 'HUBSPOT',
@@ -147,8 +149,16 @@ router.post('/:clientId/connect-crm', authMiddleware, async (req: AuthRequest, r
     }
     const prismaClientCrmType = crmTypeMap[crmType] || 'NONE'
 
-    if (crmType !== 'none' && apiKey) {
-      const encryptedCreds = encryptJSON({ crmType, apiKey })
+    const hasCredentials = crmType !== 'none' && (apiKey || accessToken)
+    if (hasCredentials) {
+      const credPayload: Record<string, string> = { crmType }
+      if (crmType === 'hubspot') {
+        credPayload.accessToken = accessToken || apiKey || ''
+        credPayload.portalId = portalId || ''
+      } else {
+        credPayload.apiKey = apiKey || ''
+      }
+      const encryptedCreds = encryptJSON(credPayload)
 
       await prisma.client.update({
         where: { id: clientId },
