@@ -419,7 +419,7 @@ export class SocialService {
       response_type: 'code',
       client_id: linkedInClientId,
       redirect_uri: redirectUri,
-      scope: 'w_member_social r_basicprofile openid profile',
+      scope: 'w_member_social openid profile',
       state: clientId
     })
 
