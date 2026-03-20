@@ -256,14 +256,23 @@ Each week is an array of post objects. Plan ${config.posting_frequency} per day.
 
     let workflowResult: { workflowId: string } | undefined
     try {
+      // Pass plain text (not JSON) as agentPrompt — JSON in a doubly-nested JSON body causes escaping issues
+      const agentContext = [
+        config.business_description || '',
+        config.content_pillars?.length ? `Content pillars: ${config.content_pillars.join(', ')}.` : '',
+        config.tone ? `Brand tone: ${config.tone}.` : '',
+        `Posting frequency: ${config.posting_frequency || 'daily'}.`
+      ].filter(Boolean).join(' ')
+
       workflowResult = await n8nService.deployWorkflow('social-media', {
         clientId,
         locationId: config.locationId,
-        agentPrompt: contentCalendar,
+        agentPrompt: agentContext,
         webhookUrl: `${process.env['API_BASE_URL']}/webhooks/social/${clientId}`,
         businessName: config.businessName,
-        platforms: config.platforms.join(','),
-        apiKey: config.api_key as string || ''
+        apiKey: config.api_key as string || '',
+        bufferToken: config.buffer_token || '',
+        bufferProfileId: (config as unknown as Record<string, string>).buffer_profile_id || ''
       })
     } catch (error) {
       logger.warn('N8N workflow deployment failed, agent will run via direct API calls', { clientId, error: String(error) })
