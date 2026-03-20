@@ -192,20 +192,6 @@
           ]
         }
       }
-    },
-    {
-      "id": "content-brief-webhook",
-      "name": "Content Brief Webhook",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
-      "position": [
-        250,
-        500
-      ],
-      "parameters": {
-        "path": "social-brief-{{CLIENT_ID}}",
-        "responseMode": "onReceived"
-      }
     }
   ],
   "connections": {
@@ -258,17 +244,6 @@
         [
           {
             "node": "Log Post to CRM",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Content Brief Webhook": {
-      "main": [
-        [
-          {
-            "node": "Claude - Generate Post Content",
             "type": "main",
             "index": 0
           }
