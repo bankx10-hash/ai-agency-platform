@@ -5,18 +5,14 @@
     {
       "id": "schedule-trigger",
       "name": "Post Schedule",
-      "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1,
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
       "position": [250, 300],
       "parameters": {
-        "rule": {
-          "interval": [
-            {
-              "field": "cronExpression",
-              "expression": "0 8 * * *"
-            }
-          ]
-        }
+        "httpMethod": "POST",
+        "path": "social-run-{{CLIENT_ID}}",
+        "responseMode": "onReceived",
+        "responseData": "allEntries"
       }
     },
     {
@@ -55,30 +51,27 @@
     {
       "id": "schedule-buffer",
       "name": "Schedule via Buffer",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
+      "type": "@n8n/n8n-nodes-langchain.mcpClient",
+      "typeVersion": 1,
       "position": [1000, 300],
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.bufferapp.com/1/updates/create.json?access_token={{BUFFER_TOKEN}}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            { "name": "Content-Type", "value": "application/x-www-form-urlencoded" }
-          ]
-        },
-        "sendBody": true,
-        "bodyContentType": "form-urlencoded",
-        "bodyParameters": {
-          "parameters": [
-            { "name": "text", "value": "={{ $json.content }}" },
-            { "name": "scheduled_at", "value": "={{ $json.scheduledTime }}" },
-            {
-              "name": "profile_ids[]",
-              "value": "={{ $json.platform === 'instagram' ? '{{BUFFER_INSTAGRAM_PROFILE_ID}}' : $json.platform === 'linkedin' ? '{{BUFFER_LINKEDIN_PROFILE_ID}}' : '{{BUFFER_FACEBOOK_PROFILE_ID}}' }}"
-            }
-          ]
+      "credentials": {
+        "httpBearerAuth": {
+          "id": "w7hvzcP37R1AGToc",
+          "name": "Bearer Auth account 2"
         }
+      },
+      "parameters": {
+        "endpointUrl": "https://mcp.buffer.com/mcp",
+        "authentication": "bearerAuth",
+        "tool": {
+          "__rl": true,
+          "value": "create_post",
+          "mode": "list",
+          "cachedResultName": "create_post"
+        },
+        "inputMode": "json",
+        "jsonInput": "={\n  \"channelId\": \"={{ $json.platform === 'instagram' ? '{{BUFFER_INSTAGRAM_PROFILE_ID}}' : $json.platform === 'linkedin' ? '{{BUFFER_LINKEDIN_PROFILE_ID}}' : '{{BUFFER_FACEBOOK_PROFILE_ID}}' }}\",\n  \"text\": \"={{ $json.content }}\",\n  \"schedulingType\": \"automatic\"\n}",
+        "options": {}
       }
     },
     {
