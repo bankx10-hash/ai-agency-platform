@@ -203,16 +203,27 @@ router.post('/redeploy-agent', async (req: Request, res: Response) => {
   }
 
   const agent = new AgentClass()
-  await agent.deploy(clientId, {
+
+  // Run deploy in background — Claude API calls can exceed Railway's 30s HTTP timeout
+  res.json({ success: true, message: `${agentType} deploy started — check Railway logs for progress` })
+
+  agent.deploy(clientId, {
     locationId: clientId,
     businessName: client.businessName,
     businessDescription: client.businessDescription ?? undefined,
     icpDescription: client.icpDescription ?? undefined,
-    api_key: serviceSecret
+    api_key: serviceSecret,
+    // Social Media agent extras
+    buffer_token: process.env['BUFFER_TOKEN'] || '',
+    platforms: ['instagram', 'facebook', 'linkedin'],
+    content_pillars: ['education', 'social proof', 'behind the scenes'],
+    tone: 'authentic, direct, and value-driven',
+    posting_frequency: 'daily'
+  }).then(() => {
+    logger.info('Agent redeployed via admin', { clientId, agentType })
+  }).catch((err: Error) => {
+    logger.error('Agent redeploy failed', { clientId, agentType, error: err.message })
   })
-
-  logger.info('Agent redeployed via admin', { clientId, agentType })
-  res.json({ success: true, message: `${agentType} redeployed successfully` })
 })
 
 export default router
