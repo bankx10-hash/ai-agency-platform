@@ -314,10 +314,14 @@ export class SocialService {
 
   getMetaAuthUrl(clientId: string): string {
     const appId = process.env['META_APP_ID']
-    const redirectUri = process.env['META_REDIRECT_URI']
+    let redirectUri = process.env['META_REDIRECT_URI']
 
     if (!appId || !redirectUri) {
       throw new Error('META_APP_ID and META_REDIRECT_URI must be configured')
+    }
+
+    if (!redirectUri.startsWith('http://') && !redirectUri.startsWith('https://')) {
+      redirectUri = `https://${redirectUri}`
     }
 
     const params = new URLSearchParams({
@@ -339,10 +343,14 @@ export class SocialService {
   }> {
     const appId = process.env['META_APP_ID']
     const appSecret = process.env['META_APP_SECRET']
-    const redirectUri = process.env['META_REDIRECT_URI']
+    let redirectUri = process.env['META_REDIRECT_URI']
 
     if (!appId || !appSecret || !redirectUri) {
       throw new Error('META_APP_ID, META_APP_SECRET, and META_REDIRECT_URI must be configured')
+    }
+
+    if (!redirectUri.startsWith('http://') && !redirectUri.startsWith('https://')) {
+      redirectUri = `https://${redirectUri}`
     }
 
     // Exchange code for user access token
