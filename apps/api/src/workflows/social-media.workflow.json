@@ -268,7 +268,7 @@
       "main": [
         [
           {
-            "node": "Seed Data",
+            "node": "Claude - Generate Post Content",
             "type": "main",
             "index": 0
           }
