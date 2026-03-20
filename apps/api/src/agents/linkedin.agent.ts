@@ -46,12 +46,7 @@ Generate only the message text, nothing else.`
   async deploy(clientId: string, config: LinkedInAgentConfig): Promise<{ id: string; n8nWorkflowId?: string }> {
     logger.info('Deploying LinkedIn Outreach Agent', { clientId })
 
-    const connectionPrompt = await this.callClaude(
-      `Create 3 variations of a LinkedIn connection request for ${config.businessName}.
-       Each should be under 300 characters, personalized, and human-sounding.
-       Return as a JSON array of strings.`,
-      'You are an expert LinkedIn marketer. Write in a genuine, human way.'
-    )
+    const defaultPrompt = `You are a LinkedIn outreach specialist for ${config.businessName}. Write short, genuine connection request messages under 200 characters. Be friendly, not salesy.`
 
     let workflowResult: { workflowId: string } | undefined
 
@@ -59,22 +54,20 @@ Generate only the message text, nothing else.`
       workflowResult = await n8nService.deployWorkflow('linkedin-outreach', {
         clientId,
         locationId: config.locationId,
-        agentPrompt: connectionPrompt,
-        searchKeywords: config.search_keywords,
+        agentPrompt: defaultPrompt,
         businessName: config.businessName,
+        icpDescription: config.search_keywords || '',
         apiKey: config.api_key as string || ''
       })
     } catch (error) {
-      logger.warn('N8N workflow deployment failed', { clientId, error: String(error) })
+      const msg = error instanceof Error ? error.message : String(error)
+      const detail = (error as Record<string, Record<string, unknown>>)?.response?.data
+      logger.error('N8N workflow deployment failed', { clientId, error: msg, detail: JSON.stringify(detail) })
     }
 
     const deployment = await this.createDeploymentRecord(
       clientId,
-      {
-        ...config,
-        generatedPrompt: connectionPrompt,
-        linkedin_cookie: config.linkedin_cookie
-      },
+      { ...config },
       workflowResult?.workflowId
     )
 

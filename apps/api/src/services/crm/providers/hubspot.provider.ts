@@ -22,8 +22,8 @@ export class HubSpotProvider implements ICRMProvider {
     this.client.interceptors.response.use(
       (response) => response,
       (error) => {
-        logger.error('HubSpot API error', { status: error.response?.status, data: error.response?.data })
-        throw error
+        logger.error('HubSpot API error', { status: error.response?.status, data: JSON.stringify(error.response?.data) })
+        throw new Error(`HubSpot ${error.response?.status}: ${JSON.stringify(error.response?.data)}`)
       }
     )
   }
@@ -42,16 +42,37 @@ export class HubSpotProvider implements ICRMProvider {
     return { id: response.data.id }
   }
 
-  async updateContact(contactId: string, data: Partial<ContactData>): Promise<void> {
-    await this.client.patch(`/crm/v3/objects/contacts/${contactId}`, {
-      properties: {
-        firstname: data.firstName,
-        lastname: data.lastName,
-        email: data.email,
-        phone: data.phone
-      }
-    })
+  async updateContact(contactId: string, data: Partial<ContactData> & { score?: number; summary?: string; tags?: string[] }): Promise<void> {
+    const properties: Record<string, string> = {}
+    if (data.firstName !== undefined) properties.firstname = data.firstName
+    if (data.lastName !== undefined) properties.lastname = data.lastName
+    if (data.email !== undefined) properties.email = data.email
+    if (data.phone !== undefined) properties.phone = data.phone
+    if (data.score !== undefined) properties.hs_lead_status = data.score >= 70 ? 'IN_PROGRESS' : 'OPEN'
+    if (data.summary !== undefined) properties.jobtitle = data.summary.slice(0, 100)
+    if (Object.keys(properties).length === 0) {
+      logger.info('HubSpot updateContact: no valid fields to update', { contactId })
+      return
+    }
+    await this.client.patch(`/crm/v3/objects/contacts/${contactId}`, { properties })
     logger.info('HubSpot contact updated', { contactId })
+  }
+
+  async getContacts(query?: string, limit = 50): Promise<{ contacts: CRMContact[], total: number }> {
+    const params: Record<string, unknown> = {
+      limit,
+      properties: 'firstname,lastname,email,phone'
+    }
+    if (query) params['filterGroups'] = query
+    const response = await this.client.get('/crm/v3/objects/contacts', { params })
+    const contacts: CRMContact[] = (response.data.results || []).map((r: { id: string, properties: Record<string, string> }) => ({
+      id: r.id,
+      firstName: r.properties.firstname,
+      lastName: r.properties.lastname,
+      email: r.properties.email,
+      phone: r.properties.phone
+    }))
+    return { contacts, total: response.data.total ?? contacts.length }
   }
 
   async getContact(contactId: string): Promise<CRMContact> {

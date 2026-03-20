@@ -134,11 +134,13 @@ export class N8NService {
     const sanitize = (str: string) => str
       .replace(/\\/g, '\\\\')
       .replace(/"/g, '\\"')
-      .replace(/\n/g, '\\n')
-      .replace(/\r/g, '\\r')
-      .replace(/\t/g, '\\t')
+      .replace(/\n/g, ' ')
+      .replace(/\r/g, ' ')
+      .replace(/\t/g, ' ')
       // eslint-disable-next-line no-control-regex
       .replace(/[\x00-\x1F\x7F]/g, '')
+      .replace(/`/g, "'")
+      .trim()
 
     const replacements: Record<string, string> = {
       '{{CLIENT_ID}}': config.clientId,
@@ -163,6 +165,9 @@ export class N8NService {
       '{{GHL_API_KEY}}': process.env['GHL_API_KEY'] || '',
       '{{GHL_AGENCY_ID}}': process.env['GHL_AGENCY_ID'] || '',
       '{{BUFFER_TOKEN}}': (config as Record<string, string>).bufferToken || '',
+      '{{BUFFER_INSTAGRAM_PROFILE_ID}}': process.env['BUFFER_INSTAGRAM_PROFILE_ID'] || (config as Record<string, string>).bufferInstagramProfileId || '',
+      '{{BUFFER_LINKEDIN_PROFILE_ID}}': process.env['BUFFER_LINKEDIN_PROFILE_ID'] || (config as Record<string, string>).bufferLinkedinProfileId || '',
+      '{{BUFFER_FACEBOOK_PROFILE_ID}}': process.env['BUFFER_FACEBOOK_PROFILE_ID'] || (config as Record<string, string>).bufferFacebookProfileId || '',
       '{{META_AD_ACCOUNT_ID}}': (config as Record<string, string>).metaAdAccountId || '',
       '{{META_ACCESS_TOKEN}}': (config as Record<string, string>).metaAccessToken || '',
       '{{META_PAGE_ID}}': (config as Record<string, string>).metaPageId || '',
@@ -172,7 +177,12 @@ export class N8NService {
       '{{AD_LINK_URL}}': (config as Record<string, string>).adLinkUrl || '',
       '{{PAYMENT_LINK}}': (config as Record<string, string>).paymentLink || '',
       '{{CONTRACT_LINK}}': (config as Record<string, string>).contractLink || '',
-      '{{RETELL_AGENT_ID}}': (config as Record<string, string>).retellAgentId || ''
+      '{{RETELL_AGENT_ID}}': (config as Record<string, string>).retellAgentId || '',
+      '{{APOLLO_API_KEY}}': (process.env['APOLLO_API_KEY'] || '').trim(),
+      '{{PHANTOMBUSTER_API_KEY}}': (process.env['PHANTOMBUSTER_API_KEY'] || '').trim(),
+      '{{PHANTOMBUSTER_AUTOCONNECT_ID}}': (process.env['PHANTOMBUSTER_AUTOCONNECT_ID'] || '').trim(),
+      '{{PHANTOMBUSTER_MESSAGESENDER_ID}}': (process.env['PHANTOMBUSTER_MESSAGESENDER_ID'] || '').trim(),
+      '{{LINKEDIN_COOKIE}}': (process.env['LINKEDIN_COOKIE'] || '').trim().replace(/[\x00-\x1F\x7F]/g, '')
     }
 
     for (const [placeholder, value] of Object.entries(replacements)) {
@@ -295,7 +305,13 @@ export class N8NService {
     testPayload?: Record<string, unknown>
   ): Promise<WorkflowDeployResult> {
     const template = this.loadWorkflowTemplate(templateName)
-    const workflow = this.injectVariables(template, clientConfig)
+    let workflow: Record<string, unknown>
+    try {
+      workflow = this.injectVariables(template, clientConfig)
+    } catch (injectError) {
+      logger.error('N8N injectVariables failed', { templateName, error: String(injectError) })
+      throw injectError
+    }
 
     const workflowName = `[${clientConfig.clientId}] ${(workflow as { name?: string }).name || templateName}`
     const { active: _active, tags: _tags, ...workflowWithoutReadOnly } = workflow as Record<string, unknown>

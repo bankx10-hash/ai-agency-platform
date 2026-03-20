@@ -4,6 +4,7 @@ import { authMiddleware, AuthRequest } from '../middleware/auth'
 import { onboardingQueue } from '../queue/onboarding.queue'
 import { encryptJSON } from '../utils/encrypt'
 import { emailService } from '../services/email.service'
+import { socialService } from '../services/social.service'
 import { logger } from '../utils/logger'
 import { z } from 'zod'
 
@@ -263,6 +264,36 @@ router.get('/gmail/auth-url', authMiddleware, (req: AuthRequest, res: Response):
     res.json({ url: authUrl })
   } catch (error) {
     logger.error('Error generating Gmail auth URL', { error })
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+router.get('/social/meta/auth-url', authMiddleware, (req: AuthRequest, res: Response): void => {
+  try {
+    const clientId = req.clientId || (req.query['clientId'] as string)
+    if (!clientId) {
+      res.status(400).json({ error: 'clientId required' })
+      return
+    }
+    const authUrl = socialService.getMetaAuthUrl(clientId)
+    res.json({ url: authUrl })
+  } catch (error) {
+    logger.error('Error generating Meta auth URL', { error })
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+router.get('/social/linkedin/auth-url', authMiddleware, (req: AuthRequest, res: Response): void => {
+  try {
+    const clientId = req.clientId || (req.query['clientId'] as string)
+    if (!clientId) {
+      res.status(400).json({ error: 'clientId required' })
+      return
+    }
+    const authUrl = socialService.getLinkedInAuthUrl(clientId)
+    res.json({ url: authUrl })
+  } catch (error) {
+    logger.error('Error generating LinkedIn auth URL', { error })
     res.status(500).json({ error: 'Internal server error' })
   }
 })

@@ -21,8 +21,15 @@ router.use((req: AuthRequest, res: Response, next) => {
 router.get('/contacts', async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const crm = await crmService.forClient(req.params.clientId)
-    const contact = await crm.getContact(req.query.contactId as string || '')
-    res.json(contact)
+    if (req.query.contactId) {
+      const contact = await crm.getContact(req.query.contactId as string)
+      res.json(contact)
+    } else {
+      const query = req.query.query as string | undefined
+      const limit = req.query.limit ? parseInt(req.query.limit as string) : 50
+      const result = await crm.getContacts(query, limit)
+      res.json(result)
+    }
   } catch (error) {
     const msg = serializeError(error)
     if (msg.includes('credentials found') || msg.includes('Unsupported CRM')) {

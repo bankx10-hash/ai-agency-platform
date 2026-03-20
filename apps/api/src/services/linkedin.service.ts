@@ -1,12 +1,6 @@
 import axios, { AxiosInstance } from 'axios'
 import { logger } from '../utils/logger'
 
-interface PhantombusterAgent {
-  id: string
-  name: string
-  status: string
-}
-
 interface LinkedInProspect {
   profileUrl: string
   firstName: string
@@ -14,12 +8,10 @@ interface LinkedInProspect {
   headline?: string
   company?: string
   location?: string
-  connectionDegree?: string
 }
 
 export interface ProspectSearchParams {
-  titleKeyword?: string
-  company?: string
+  titleKeywords?: string[]
   location?: string
   limit?: number
 }
@@ -28,16 +20,15 @@ export class LinkedInService {
   private apollo: AxiosInstance
   private phantombuster: AxiosInstance
 
+  private readonly autoConnectPhantomId = process.env['PHANTOMBUSTER_AUTOCONNECT_ID'] || '2659791000101055'
+  private readonly messageSenderPhantomId = process.env['PHANTOMBUSTER_MESSAGESENDER_ID'] || '8760957881537511'
+
   constructor() {
     const apolloKey = process.env['APOLLO_API_KEY']
-    if (!apolloKey) {
-      logger.warn('APOLLO_API_KEY not set — LinkedIn prospect search will be unavailable')
-    }
+    if (!apolloKey) logger.warn('APOLLO_API_KEY not set — LinkedIn prospect search will be unavailable')
 
     const phantombusterKey = process.env['PHANTOMBUSTER_API_KEY']
-    if (!phantombusterKey) {
-      logger.warn('PHANTOMBUSTER_API_KEY not set — LinkedIn connection/messaging will be unavailable')
-    }
+    if (!phantombusterKey) logger.warn('PHANTOMBUSTER_API_KEY not set — LinkedIn automation will be unavailable')
 
     this.apollo = axios.create({
       baseURL: 'https://api.apollo.io/v1',
@@ -50,10 +41,7 @@ export class LinkedInService {
     this.apollo.interceptors.response.use(
       (response) => response,
       (error) => {
-        logger.error('Apollo API error', {
-          status: error.response?.status,
-          data: error.response?.data
-        })
+        logger.error('Apollo API error', { status: error.response?.status, data: error.response?.data })
         throw error
       }
     )
@@ -69,93 +57,77 @@ export class LinkedInService {
     this.phantombuster.interceptors.response.use(
       (response) => response,
       (error) => {
-        logger.error('Phantombuster API error', {
-          status: error.response?.status,
-          data: error.response?.data
-        })
+        logger.error('Phantombuster API error', { status: error.response?.status, data: error.response?.data })
         throw error
       }
     )
   }
 
   async searchProspects(params: ProspectSearchParams): Promise<LinkedInProspect[]> {
-    const limit = params.limit ?? 50
-    const collected: any[] = []
-    let page = 1
+    const limit = params.limit ?? 20
+    const titles = params.titleKeywords || ['CEO', 'Business Owner', 'Director', 'Marketing Director']
 
-    do {
-      const response = await this.apollo.post('/mixed_people/search', {
-        person_titles: params.titleKeyword ? [params.titleKeyword] : undefined,
-        organization_names: params.company ? [params.company] : undefined,
-        person_locations: params.location ? [params.location] : undefined,
-        per_page: 25,
-        page
-      })
+    const response = await this.apollo.post('/mixed_people/search', {
+      person_titles: titles,
+      person_locations: params.location ? [params.location] : ['Australia'],
+      per_page: limit,
+      page: 1
+    })
 
-      const people: any[] = response.data.people || []
-      collected.push(...people)
-      page++
+    const people = response.data.people || []
+    logger.info('Apollo prospect search completed', { count: people.length })
 
-      if (people.length < 25) break
-    } while (collected.length < limit)
-
-    const prospects = collected.slice(0, limit)
-
-    logger.info('Apollo LinkedIn search completed', { count: prospects.length })
-
-    return prospects.map((p) => ({
-      profileUrl: p.linkedin_url || '',
-      firstName: p.first_name || '',
-      lastName: p.last_name || '',
-      headline: p.headline,
+    return people.map((p: Record<string, unknown> & { organization?: Record<string, string> }) => ({
+      profileUrl: p.linkedin_url as string || '',
+      firstName: p.first_name as string || '',
+      lastName: p.last_name as string || '',
+      headline: p.headline as string,
       company: p.organization?.name,
-      location: p.city
-    }))
+      location: p.city as string
+    })).filter((p: LinkedInProspect) => p.profileUrl)
   }
 
-  async sendConnectionRequest(
+  async sendConnectionRequests(
     sessionCookie: string,
-    profileUrl: string,
+    profileUrls: string[],
     message: string
   ): Promise<{ containerId: string }> {
-    const agentsResponse = await this.phantombuster.get('/agents')
-    const agents: PhantombusterAgent[] = agentsResponse.data.agents || []
-
-    const connectionAgent = agents.find(a => a.name.includes('LinkedIn Auto Connect'))
-
-    if (!connectionAgent) {
-      throw new Error('LinkedIn Auto Connect agent not found in Phantombuster')
-    }
-
-    const launchResponse = await this.phantombuster.post(`/agents/${connectionAgent.id}/launch`, {
+    const response = await this.phantombuster.post(`/agents/${this.autoConnectPhantomId}/launch`, {
       argument: {
         sessionCookie,
-        spreadsheetUrl: profileUrl,
+        spreadsheetUrl: profileUrls.join('\n'),
         message,
-        numberOfAddsPerLaunch: 1
+        numberOfAddsPerLaunch: Math.min(profileUrls.length, 20)
       }
     })
 
-    logger.info('LinkedIn connection request sent', { profileUrl })
-
-    return { containerId: launchResponse.data.containerId }
+    logger.info('LinkedIn Auto Connect launched', { count: profileUrls.length })
+    return { containerId: response.data.containerId }
   }
 
-  async sendFollowUpMessage(
+  async sendFollowUpMessages(
     sessionCookie: string,
-    profileUrl: string,
-    message: string,
-    agentId: string
-  ): Promise<void> {
-    await this.phantombuster.post(`/agents/${agentId}/launch`, {
+    profileUrls: string[],
+    message: string
+  ): Promise<{ containerId: string }> {
+    const response = await this.phantombuster.post(`/agents/${this.messageSenderPhantomId}/launch`, {
       argument: {
         sessionCookie,
-        profileUrl,
-        message
+        spreadsheetUrl: profileUrls.join('\n'),
+        message,
+        numberOfLinesPerLaunch: Math.min(profileUrls.length, 20)
       }
     })
 
-    logger.info('LinkedIn follow-up message sent', { profileUrl })
+    logger.info('LinkedIn Message Sender launched', { count: profileUrls.length })
+    return { containerId: response.data.containerId }
+  }
+
+  async getPhantomOutput(phantomId: string, containerId: string): Promise<unknown> {
+    const response = await this.phantombuster.get(`/agents/${phantomId}/fetch-output`, {
+      params: { containerId }
+    })
+    return response.data
   }
 }
 

@@ -123,7 +123,7 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1024,system:'You are a helpful AI assistant for Test Business',messages:[{role:'user',content:'Score this lead 0-100 and return ONLY a JSON object with fields: score (number 0-100), summary (string), nextAction (string), tags (string[]). No other text. Lead data: ' + JSON.stringify($json)}]}) }}"
+        "body": "={{ '{\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":1024,\"system\":\"You are a lead scoring AI for {{BUSINESS_NAME}}. ICP: {{ICP_DESCRIPTION}}\",\"messages\":[{\"role\":\"user\",\"content\":\"Score this lead 0-100 and return ONLY a JSON object with fields: score (number 0-100), summary (string), nextAction (string), tags (string[]). No other text. Lead data: ' + JSON.stringify($json) + '\"}]}' }}"
       }
     },
     {
@@ -136,7 +136,7 @@
         300
       ],
       "parameters": {
-        "jsCode": "const response = JSON.parse($input.first().json.content[0].text.replace(/```json\\n?|\\n?```/g, '').trim());\nconst contactId = $('Split Contacts').item.json.id;\nreturn [{ json: { score: response.score, summary: response.summary, nextAction: response.nextAction, tags: response.tags || [], contactId } }];"
+        "jsCode": "const allContacts = $('Split Contacts').all();\nreturn $input.all().map((item, index) => {\n  const text = item.json.content[0].text.replace(/```json\\n?|\\n?```/g, '').trim();\n  const response = JSON.parse(text);\n  const contactId = allContacts[index]?.json?.id || '';\n  return { json: { score: response.score, summary: response.summary, nextAction: response.nextAction, tags: response.tags || [], contactId } };\n});"
       }
     },
     {
@@ -179,7 +179,7 @@
       ],
       "parameters": {
         "method": "PUT",
-        "url": "{{API_URL}}/clients/{{CLIENT_ID}}/crm/contacts/{{$json.contactId}}",
+        "url": "={{ '{{API_URL}}/clients/{{CLIENT_ID}}/crm/contacts/' + $json.contactId }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -194,8 +194,14 @@
           ]
         },
         "sendBody": true,
-        "specifyBody": "string",
-        "body": "={\"locationId\":\"{{LOCATION_ID}}\",\"tags\":[\"high-score-lead\",\"score-\" + $json.score],\"customFields\":{\"lead_score\":$json.score,\"lead_summary\":$json.summary}}"
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "score", "value": "={{ $json.score }}" },
+            { "name": "summary", "value": "={{ $json.summary }}" },
+            { "name": "locationId", "value": "{{LOCATION_ID}}" }
+          ]
+        }
       }
     },
     {
@@ -211,8 +217,15 @@
         "method": "POST",
         "url": "{{WEBHOOK_URL}}/appointments-{{CLIENT_ID}}",
         "sendBody": true,
-        "specifyBody": "string",
-        "body": "={\"contactId\":$json.contactId,\"score\":$json.score,\"summary\":$json.summary,\"locationId\":\"{{LOCATION_ID}}\"}"
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "contactId", "value": "={{ $json.contactId }}" },
+            { "name": "score", "value": "={{ $json.score }}" },
+            { "name": "summary", "value": "={{ $json.summary }}" },
+            { "name": "locationId", "value": "{{LOCATION_ID}}" }
+          ]
+        }
       }
     },
     {
@@ -226,7 +239,7 @@
       ],
       "parameters": {
         "method": "PUT",
-        "url": "{{API_URL}}/clients/{{CLIENT_ID}}/crm/contacts/{{$json.contactId}}",
+        "url": "={{ '{{API_URL}}/clients/{{CLIENT_ID}}/crm/contacts/' + $json.contactId }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -241,8 +254,13 @@
           ]
         },
         "sendBody": true,
-        "specifyBody": "string",
-        "body": "={\"locationId\":\"{{LOCATION_ID}}\",\"tags\":[\"medium-score-lead\"],\"customFields\":{\"lead_score\":$json.score}}"
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "score", "value": "={{ $json.score }}" },
+            { "name": "locationId", "value": "{{LOCATION_ID}}" }
+          ]
+        }
       }
     },
     {

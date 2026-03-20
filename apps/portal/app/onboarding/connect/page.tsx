@@ -12,12 +12,20 @@ export default function ConnectPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [gmailConnected, setGmailConnected] = useState(false)
+  const [metaConnected, setMetaConnected] = useState(false)
+  const [linkedinConnected, setLinkedinConnected] = useState(false)
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const gmailStatus = params.get('gmail')
+    const metaStatus = params.get('meta')
+    const linkedinStatus = params.get('linkedin')
     if (gmailStatus === 'connected') setGmailConnected(true)
     if (gmailStatus === 'error') setError('Gmail connection failed. Please try again.')
+    if (metaStatus === 'connected') setMetaConnected(true)
+    if (metaStatus === 'error') setError('Facebook & Instagram connection failed. Please try again.')
+    if (linkedinStatus === 'connected') setLinkedinConnected(true)
+    if (linkedinStatus === 'error') setError('LinkedIn connection failed. Please try again.')
   }, [])
 
   const [form, setForm] = useState({
@@ -54,6 +62,32 @@ export default function ConnectPage() {
       window.location.href = response.data.url
     } catch {
       setError('Failed to initiate Gmail connection')
+    }
+  }
+
+  async function handleMetaConnect() {
+    try {
+      const token = getToken()
+      const clientId = getClientId()
+      const response = await axios.get(`${API_URL}/onboarding/social/meta/auth-url?clientId=${clientId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      window.location.href = response.data.url
+    } catch {
+      setError('Failed to initiate Facebook & Instagram connection')
+    }
+  }
+
+  async function handleLinkedInConnect() {
+    try {
+      const token = getToken()
+      const clientId = getClientId()
+      const response = await axios.get(`${API_URL}/onboarding/social/linkedin/auth-url?clientId=${clientId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      window.location.href = response.data.url
+    } catch {
+      setError('Failed to initiate LinkedIn connection')
     }
   }
 
@@ -196,6 +230,60 @@ export default function ConnectPage() {
             <div>
               <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                 <span className="w-7 h-7 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center text-sm font-bold">2</span>
+                Connect Facebook &amp; Instagram (optional)
+              </h2>
+              {metaConnected ? (
+                <div className="flex items-center gap-3 px-5 py-3 border border-green-300 bg-green-50 rounded-xl text-green-700 font-medium">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                  Facebook &amp; Instagram Connected
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleMetaConnect}
+                  className="flex items-center gap-3 px-5 py-3 border border-gray-300 rounded-xl hover:bg-gray-50 transition font-medium text-gray-700"
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="#1877F2">
+                    <path d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073C0 18.1 4.388 23.094 10.125 24v-8.437H7.078v-3.49h3.047V9.41c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.236 2.686.236v2.97h-1.513c-1.491 0-1.956.93-1.956 1.887v2.267h3.328l-.532 3.49h-2.796V24C19.612 23.094 24 18.1 24 12.073z"/>
+                  </svg>
+                  Connect Facebook &amp; Instagram
+                </button>
+              )}
+              <p className="text-xs text-gray-500 mt-2">
+                Allows your Social Media Agent to post to Facebook Pages and Instagram Business accounts automatically.
+              </p>
+            </div>
+
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <span className="w-7 h-7 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center text-sm font-bold">3</span>
+                Connect LinkedIn (optional)
+              </h2>
+              {linkedinConnected ? (
+                <div className="flex items-center gap-3 px-5 py-3 border border-green-300 bg-green-50 rounded-xl text-green-700 font-medium">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg>
+                  LinkedIn Connected
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleLinkedInConnect}
+                  className="flex items-center gap-3 px-5 py-3 border border-gray-300 rounded-xl hover:bg-gray-50 transition font-medium text-gray-700"
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="#0A66C2">
+                    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+                  </svg>
+                  Connect LinkedIn
+                </button>
+              )}
+              <p className="text-xs text-gray-500 mt-2">
+                Enables your LinkedIn Outreach Agent to post content and send connection requests on your behalf.
+              </p>
+            </div>
+
+            <div>
+              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                <span className="w-7 h-7 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center text-sm font-bold">4</span>
                 Connect your CRM (optional)
               </h2>
               <select
@@ -257,7 +345,7 @@ export default function ConnectPage() {
 
             <div>
               <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <span className="w-7 h-7 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center text-sm font-bold">3</span>
+                <span className="w-7 h-7 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center text-sm font-bold">5</span>
                 Social Media Platforms (optional)
               </h2>
               <p className="text-xs text-gray-500 mb-4">Connect the platforms you want your Social Media Agent to post to automatically.</p>
@@ -343,7 +431,7 @@ export default function ConnectPage() {
 
             <div>
               <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <span className="w-7 h-7 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center text-sm font-bold">4</span>
+                <span className="w-7 h-7 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center text-sm font-bold">6</span>
                 LinkedIn session cookie (optional)
               </h2>
               <input
@@ -360,7 +448,7 @@ export default function ConnectPage() {
 
             <div>
               <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <span className="w-7 h-7 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center text-sm font-bold">5</span>
+                <span className="w-7 h-7 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center text-sm font-bold">7</span>
                 Business description
               </h2>
               <textarea
@@ -374,7 +462,7 @@ export default function ConnectPage() {
 
             <div>
               <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <span className="w-7 h-7 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center text-sm font-bold">6</span>
+                <span className="w-7 h-7 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center text-sm font-bold">8</span>
                 Ideal customer profile (ICP)
               </h2>
               <textarea

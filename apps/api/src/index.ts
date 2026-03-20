@@ -13,6 +13,7 @@ import adminRouter from './routes/admin'
 import { logger } from './utils/logger'
 import { prisma } from './lib/prisma'
 import { emailService } from './services/email.service'
+import { socialService } from './services/social.service'
 import { encryptJSON } from './utils/encrypt'
 
 process.on('uncaughtException', (err) => {
@@ -148,6 +149,76 @@ app.get('/onboarding/oauth/gmail/callback', async (req, res) => {
   } catch (error) {
     logger.error('Gmail OAuth callback error', { error, clientId })
     res.redirect(`${portalUrl}/onboarding/connect?gmail=error`)
+  }
+})
+
+app.get('/onboarding/oauth/meta/callback', async (req, res) => {
+  const { code, state: clientId, error: oauthError } = req.query as Record<string, string>
+  const portalUrl = process.env['PORTAL_URL'] || 'http://localhost:3000'
+
+  if (oauthError || !code || !clientId) {
+    logger.warn('Meta OAuth callback missing params', { code: !!code, clientId, oauthError })
+    res.redirect(`${portalUrl}/onboarding/connect?meta=error`)
+    return
+  }
+
+  try {
+    const { pageAccessToken, pageId, pageName, instagramUserId } = await socialService.exchangeMetaCode(code)
+
+    const encryptedCreds = encryptJSON({ pageAccessToken, pageId, pageName, instagramUserId })
+
+    await prisma.clientCredential.upsert({
+      where: { id: `meta-${clientId}` },
+      update: { credentials: encryptedCreds },
+      create: { id: `meta-${clientId}`, clientId, service: 'meta', credentials: encryptedCreds }
+    })
+
+    await prisma.onboarding.upsert({
+      where: { clientId },
+      update: { data: { metaConnected: true, metaPageId: pageId, metaPageName: pageName } },
+      create: { clientId, step: 1, status: 'IN_PROGRESS', data: { metaConnected: true, metaPageId: pageId, metaPageName: pageName } }
+    })
+
+    logger.info('Meta connected via OAuth callback', { clientId, pageId, pageName, hasInstagram: !!instagramUserId })
+    res.redirect(`${portalUrl}/onboarding/connect?meta=connected`)
+  } catch (error) {
+    logger.error('Meta OAuth callback error', { error, clientId })
+    res.redirect(`${portalUrl}/onboarding/connect?meta=error`)
+  }
+})
+
+app.get('/onboarding/oauth/linkedin/callback', async (req, res) => {
+  const { code, state: clientId, error: oauthError } = req.query as Record<string, string>
+  const portalUrl = process.env['PORTAL_URL'] || 'http://localhost:3000'
+
+  if (oauthError || !code || !clientId) {
+    logger.warn('LinkedIn OAuth callback missing params', { code: !!code, clientId, oauthError })
+    res.redirect(`${portalUrl}/onboarding/connect?linkedin=error`)
+    return
+  }
+
+  try {
+    const { accessToken, personUrn, name } = await socialService.exchangeLinkedInCode(code)
+
+    const encryptedCreds = encryptJSON({ accessToken, personUrn, name })
+
+    await prisma.clientCredential.upsert({
+      where: { id: `linkedin-social-${clientId}` },
+      update: { credentials: encryptedCreds },
+      create: { id: `linkedin-social-${clientId}`, clientId, service: 'linkedin-social', credentials: encryptedCreds }
+    })
+
+    await prisma.onboarding.upsert({
+      where: { clientId },
+      update: { data: { linkedinConnected: true, linkedinName: name } },
+      create: { clientId, step: 1, status: 'IN_PROGRESS', data: { linkedinConnected: true, linkedinName: name } }
+    })
+
+    logger.info('LinkedIn connected via OAuth callback', { clientId, personUrn, name })
+    res.redirect(`${portalUrl}/onboarding/connect?linkedin=connected`)
+  } catch (error) {
+    logger.error('LinkedIn OAuth callback error', { error, clientId })
+    res.redirect(`${portalUrl}/onboarding/connect?linkedin=error`)
   }
 })
 

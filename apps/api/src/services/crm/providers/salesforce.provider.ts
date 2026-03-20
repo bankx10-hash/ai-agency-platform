@@ -51,6 +51,14 @@ export class SalesforceProvider implements ICRMProvider {
     logger.info('Salesforce contact updated', { contactId })
   }
 
+  async getContacts(_query?: string, limit = 50): Promise<{ contacts: CRMContact[], total: number }> {
+    const response = await this.client.get(`/query?q=SELECT+Id,FirstName,LastName,Email,Phone+FROM+Contact+LIMIT+${limit}`)
+    const contacts: CRMContact[] = (response.data.records || []).map((r: Record<string, string>) => ({
+      id: r['Id'], firstName: r['FirstName'], lastName: r['LastName'], email: r['Email'], phone: r['Phone']
+    }))
+    return { contacts, total: response.data.totalSize ?? contacts.length }
+  }
+
   async getContact(contactId: string): Promise<CRMContact> {
     const response = await this.client.get(`/sobjects/Contact/${contactId}`)
     return {

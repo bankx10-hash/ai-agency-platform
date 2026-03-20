@@ -7,10 +7,7 @@
       "name": "Daily Schedule",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.1,
-      "position": [
-        250,
-        300
-      ],
+      "position": [250, 300],
       "parameters": {
         "rule": {
           "interval": [
@@ -23,39 +20,56 @@
       }
     },
     {
-      "id": "get-prospects",
-      "name": "Get Prospects via ProxyCurl",
+      "id": "test-trigger-linkedin",
+      "name": "Test Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [250, 150],
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "test-linkedin-outreach-{{CLIENT_ID}}",
+        "responseMode": "onReceived",
+        "responseData": "allEntries"
+      }
+    },
+    {
+      "id": "seed-data",
+      "name": "Seed Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [375, 300],
+      "parameters": {
+        "mode": "manual",
+        "assignments": {
+          "assignments": [
+            { "id": "seed-clientid", "name": "clientId", "value": "{{CLIENT_ID}}", "type": "string" },
+            { "id": "seed-ts", "name": "timestamp", "value": "={{ $now }}", "type": "string" }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "search-prospects",
+      "name": "Search Prospects via Apollo",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [
-        500,
-        300
-      ],
+      "position": [500, 300],
       "parameters": {
-        "method": "GET",
-        "url": "https://nubela.co/proxycurl/api/search/person",
+        "method": "POST",
+        "url": "https://api.apollo.io/v1/mixed_people/search",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer {{PROXYCURL_API_KEY}}"
-            }
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "X-Api-Key", "value": "{{APOLLO_API_KEY}}" },
+            { "name": "Cache-Control", "value": "no-cache" }
           ]
         },
-        "sendQuery": true,
-        "queryParameters": {
-          "parameters": [
-            {
-              "name": "headline_keyword",
-              "value": "{{ICP_DESCRIPTION}}"
-            },
-            {
-              "name": "page_size",
-              "value": "10"
-            }
-          ]
-        }
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "{\"person_titles\":[\"CEO\",\"Business Owner\",\"Director\",\"Marketing Director\",\"Managing Director\"],\"person_locations\":[\"Australia\"],\"per_page\":20,\"page\":1}"
       }
     },
     {
@@ -63,12 +77,9 @@
       "name": "Split Prospects",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [
-        625,
-        300
-      ],
+      "position": [700, 300],
       "parameters": {
-        "jsCode": "const raw = $input.first().json;\nconst results = raw.results || raw.body?.results || [];\nif (results.length === 0) return [];\nreturn results.map(p => ({ json: p }));"
+        "jsCode": "const raw = $input.first().json;\nconst people = raw.people || raw.body?.people || [];\nif (people.length === 0) return [];\nreturn people\n  .filter(p => p.linkedin_url)\n  .map(p => ({ json: {\n    profileUrl: p.linkedin_url,\n    firstName: p.first_name || '',\n    lastName: p.last_name || '',\n    headline: p.headline || '',\n    company: p.organization?.name || '',\n    location: p.city || ''\n  }}));"
       }
     },
     {
@@ -76,75 +87,95 @@
       "name": "Claude - Personalise Message",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [
-        750,
-        300
-      ],
+      "position": [900, 300],
       "parameters": {
         "method": "POST",
         "url": "https://api.anthropic.com/v1/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "x-api-key",
-              "value": "{{ANTHROPIC_API_KEY}}"
-            },
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
-            },
-            {
-              "name": "content-type",
-              "value": "application/json"
-            }
+            { "name": "x-api-key", "value": "{{ANTHROPIC_API_KEY}}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
           ]
         },
         "sendBody": true,
-        "body": "={{ JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:300,system:'{{AGENT_PROMPT}}',messages:[{role:'user',content:'Write a LinkedIn connection request for: ' + JSON.stringify($json)}]}) }}",
         "contentType": "raw",
-        "rawContentType": "application/json"
+        "rawContentType": "application/json",
+        "body": "={{ '{\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":150,\"system\":\"You are writing LinkedIn connection request messages for {{BUSINESS_NAME}}. ICP: {{ICP_DESCRIPTION}}. Write short, friendly, personalised messages under 200 characters. No emojis. Return ONLY the message text.\",\"messages\":[{\"role\":\"user\",\"content\":\"Write a connection request for: ' + JSON.stringify($json) + '\"}]}' }}"
+      }
+    },
+    {
+      "id": "parse-message",
+      "name": "Parse Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1100, 300],
+      "parameters": {
+        "jsCode": "const allProspects = $('Split Prospects').all();\nreturn $input.all().map((item, index) => {\n  const message = item.json.content?.[0]?.text?.trim() || 'Hi #firstName#, I\\'d love to connect!';\n  const prospect = allProspects[index]?.json || {};\n  return { json: { ...prospect, message } };\n});"
+      }
+    },
+    {
+      "id": "send-connection-requests",
+      "name": "Send Connection Requests",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1300, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.phantombuster.com/api/v2/agents/{{PHANTOMBUSTER_AUTOCONNECT_ID}}/launch",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "X-Phantombuster-Key", "value": "{{PHANTOMBUSTER_API_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "argument[sessionCookie]", "value": "{{LINKEDIN_COOKIE}}" },
+            { "name": "argument[spreadsheetUrl]", "value": "={{ $json.profileUrl }}" },
+            { "name": "argument[message]", "value": "={{ $json.message }}" },
+            { "name": "argument[numberOfAddsPerLaunch]", "value": "1" }
+          ]
+        }
       }
     },
     {
       "id": "log-to-crm",
-      "name": "Log Activity to CRM",
+      "name": "Log to CRM",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [
-        1000,
-        300
-      ],
+      "position": [1500, 300],
       "parameters": {
         "method": "POST",
         "url": "{{API_URL}}/clients/{{CLIENT_ID}}/crm/contacts",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer {{API_KEY}}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
+            { "name": "Authorization", "value": "Bearer {{API_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
           ]
         },
         "sendBody": true,
-        "specifyBody": "string",
-        "body": "={\"locationId\":\"{{LOCATION_ID}}\",\"firstName\":($('Split Prospects').item.json.full_name || '').split(' ')[0],\"lastName\":($('Split Prospects').item.json.full_name || '').split(' ').slice(1).join(' '),\"source\":\"LinkedIn Outreach\",\"tags\":[\"linkedin-prospect\",\"client-{{CLIENT_ID}}\"],\"customFields\":{\"linkedin_url\":$('Split Prospects').item.json.profile_url || '',\"company\":$('Split Prospects').item.json.company || ''}}"
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "firstName", "value": "={{ $('Parse Message').item.json.firstName }}" },
+            { "name": "lastName", "value": "={{ $('Parse Message').item.json.lastName }}" },
+            { "name": "source", "value": "LinkedIn Outreach" }
+          ]
+        }
       }
     },
     {
-      "id": "webhook-reply-handler",
+      "id": "reply-webhook",
       "name": "Handle LinkedIn Reply",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [
-        250,
-        500
-      ],
+      "position": [250, 500],
       "parameters": {
         "httpMethod": "POST",
         "path": "linkedin-reply-{{CLIENT_ID}}",
@@ -156,167 +187,52 @@
       "name": "Claude - Classify Reply",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [
-        500,
-        500
-      ],
+      "position": [500, 500],
       "parameters": {
         "method": "POST",
         "url": "https://api.anthropic.com/v1/messages",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            {
-              "name": "x-api-key",
-              "value": "{{ANTHROPIC_API_KEY}}"
-            },
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
-            },
-            {
-              "name": "content-type",
-              "value": "application/json"
-            }
+            { "name": "x-api-key", "value": "{{ANTHROPIC_API_KEY}}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
           ]
         },
         "sendBody": true,
-        "body": "={{ JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:200,system:'Classify LinkedIn replies as: INTERESTED, QUESTION, NOT_INTERESTED, or NEUTRAL. Return JSON with classification and suggested_response.',messages:[{role:'user',content:'Classify this reply: ' + ($json.body?.message || $json.message || '')}]}) }}",
         "contentType": "raw",
-        "rawContentType": "application/json"
-      }
-    },
-    {
-      "id": "seed-data-linkedin-outreach",
-      "name": "Seed Data",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [
-        375,
-        300
-      ],
-      "parameters": {
-        "mode": "manual",
-        "duplicateItem": false,
-        "assignments": {
-          "assignments": [
-            {
-              "id": "seed-test",
-              "name": "test",
-              "value": true,
-              "type": "boolean"
-            },
-            {
-              "id": "seed-timestamp",
-              "name": "timestamp",
-              "value": "={{ $now }}",
-              "type": "string"
-            },
-            {
-              "id": "seed-clientId",
-              "name": "clientId",
-              "value": "{{CLIENT_ID}}",
-              "type": "string"
-            }
-          ]
-        },
-        "options": {}
-      }
-    },
-    {
-      "id": "test-trigger-linkedin-outreach",
-      "name": "Test Trigger",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
-      "position": [
-        250,
-        150
-      ],
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "test-linkedin-outreach-{{CLIENT_ID}}",
-        "responseMode": "onReceived",
-        "responseData": "allEntries"
+        "rawContentType": "application/json",
+        "body": "={{ '{\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":200,\"system\":\"Classify LinkedIn replies as INTERESTED, QUESTION, NOT_INTERESTED, or NEUTRAL. Return JSON with fields: classification (string), suggested_response (string).\",\"messages\":[{\"role\":\"user\",\"content\":\"Classify this reply: ' + ($json.body?.message || $json.message || '') + '\"}]}' }}"
       }
     }
   ],
   "connections": {
     "Daily Schedule": {
-      "main": [
-        [
-          {
-            "node": "Seed Data",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Get Prospects via ProxyCurl": {
-      "main": [
-        [
-          {
-            "node": "Split Prospects",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Split Prospects": {
-      "main": [
-        [
-          {
-            "node": "Claude - Personalise Message",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Claude - Personalise Message": {
-      "main": [
-        [
-          {
-            "node": "Log Activity to CRM",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Handle LinkedIn Reply": {
-      "main": [
-        [
-          {
-            "node": "Claude - Classify Reply",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Seed Data": {
-      "main": [
-        [
-          {
-            "node": "Get Prospects via ProxyCurl",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "Seed Data", "type": "main", "index": 0 }]]
     },
     "Test Trigger": {
-      "main": [
-        [
-          {
-            "node": "Split Prospects",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[{ "node": "Split Prospects", "type": "main", "index": 0 }]]
+    },
+    "Seed Data": {
+      "main": [[{ "node": "Search Prospects via Apollo", "type": "main", "index": 0 }]]
+    },
+    "Search Prospects via Apollo": {
+      "main": [[{ "node": "Split Prospects", "type": "main", "index": 0 }]]
+    },
+    "Split Prospects": {
+      "main": [[{ "node": "Claude - Personalise Message", "type": "main", "index": 0 }]]
+    },
+    "Claude - Personalise Message": {
+      "main": [[{ "node": "Parse Message", "type": "main", "index": 0 }]]
+    },
+    "Parse Message": {
+      "main": [[{ "node": "Send Connection Requests", "type": "main", "index": 0 }]]
+    },
+    "Send Connection Requests": {
+      "main": [[{ "node": "Log to CRM", "type": "main", "index": 0 }]]
+    },
+    "Handle LinkedIn Reply": {
+      "main": [[{ "node": "Claude - Classify Reply", "type": "main", "index": 0 }]]
     }
   },
   "settings": {

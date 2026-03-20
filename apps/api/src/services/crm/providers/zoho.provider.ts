@@ -58,6 +58,14 @@ export class ZohoProvider implements ICRMProvider {
     logger.info('Zoho contact updated', { contactId })
   }
 
+  async getContacts(_query?: string, limit = 50): Promise<{ contacts: CRMContact[], total: number }> {
+    const response = await this.client.get(`/Contacts?per_page=${limit}`)
+    const contacts: CRMContact[] = (response.data.data || []).map((c: Record<string, string>) => ({
+      id: c['id'], firstName: c['First_Name'], lastName: c['Last_Name'], email: c['Email'], phone: c['Phone']
+    }))
+    return { contacts, total: contacts.length }
+  }
+
   async getContact(contactId: string): Promise<CRMContact> {
     const response = await this.client.get(`/Contacts/${contactId}`)
     const c = response.data.data?.[0]

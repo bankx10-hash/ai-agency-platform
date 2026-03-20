@@ -307,6 +307,159 @@ export class SocialService {
     })
     return response.data.data?.videos || []
   }
+
+  // ------------------------------------------------------------------
+  // Meta (Facebook + Instagram) — OAuth2 PKCE flow
+  // ------------------------------------------------------------------
+
+  getMetaAuthUrl(clientId: string): string {
+    const appId = process.env['META_APP_ID']
+    const redirectUri = process.env['META_REDIRECT_URI']
+
+    if (!appId || !redirectUri) {
+      throw new Error('META_APP_ID and META_REDIRECT_URI must be configured')
+    }
+
+    const params = new URLSearchParams({
+      client_id: appId,
+      redirect_uri: redirectUri,
+      scope: 'pages_manage_posts,pages_read_engagement,instagram_basic,instagram_content_publish,pages_show_list',
+      response_type: 'code',
+      state: clientId
+    })
+
+    return `https://www.facebook.com/v18.0/dialog/oauth?${params.toString()}`
+  }
+
+  async exchangeMetaCode(code: string): Promise<{
+    pageAccessToken: string
+    pageId: string
+    pageName: string
+    instagramUserId?: string
+  }> {
+    const appId = process.env['META_APP_ID']
+    const appSecret = process.env['META_APP_SECRET']
+    const redirectUri = process.env['META_REDIRECT_URI']
+
+    if (!appId || !appSecret || !redirectUri) {
+      throw new Error('META_APP_ID, META_APP_SECRET, and META_REDIRECT_URI must be configured')
+    }
+
+    // Exchange code for user access token
+    const tokenResponse = await axios.get('https://graph.facebook.com/v18.0/oauth/access_token', {
+      params: {
+        client_id: appId,
+        client_secret: appSecret,
+        redirect_uri: redirectUri,
+        code
+      }
+    })
+
+    const userAccessToken: string = tokenResponse.data.access_token
+    logger.info('Meta user access token obtained')
+
+    // Get list of pages managed by the user
+    const pagesResponse = await axios.get('https://graph.facebook.com/v18.0/me/accounts', {
+      params: { access_token: userAccessToken }
+    })
+
+    const pages: Array<{ id: string; name: string; access_token: string }> = pagesResponse.data.data || []
+    if (pages.length === 0) {
+      throw new Error('No Facebook Pages found for this account')
+    }
+
+    const firstPage = pages[0]
+    const pageId = firstPage.id
+    const pageName = firstPage.name
+    const pageAccessToken = firstPage.access_token
+
+    logger.info('Meta page selected', { pageId, pageName })
+
+    // Try to get linked Instagram business account
+    let instagramUserId: string | undefined
+    try {
+      const igResponse = await axios.get(`https://graph.facebook.com/v18.0/${pageId}`, {
+        params: {
+          fields: 'instagram_business_account',
+          access_token: pageAccessToken
+        }
+      })
+      instagramUserId = igResponse.data.instagram_business_account?.id
+      if (instagramUserId) {
+        logger.info('Instagram business account found', { instagramUserId })
+      }
+    } catch (err) {
+      logger.warn('Could not retrieve Instagram business account', { pageId, err })
+    }
+
+    return { pageAccessToken, pageId, pageName, instagramUserId }
+  }
+
+  // ------------------------------------------------------------------
+  // LinkedIn — OAuth2 flow (w_member_social, r_basicprofile, openid, profile)
+  // ------------------------------------------------------------------
+
+  getLinkedInAuthUrl(clientId: string): string {
+    const linkedInClientId = process.env['LINKEDIN_CLIENT_ID']
+    const redirectUri = process.env['LINKEDIN_OAUTH_REDIRECT_URI']
+
+    if (!linkedInClientId || !redirectUri) {
+      throw new Error('LINKEDIN_CLIENT_ID and LINKEDIN_OAUTH_REDIRECT_URI must be configured')
+    }
+
+    const params = new URLSearchParams({
+      response_type: 'code',
+      client_id: linkedInClientId,
+      redirect_uri: redirectUri,
+      scope: 'w_member_social r_basicprofile openid profile',
+      state: clientId
+    })
+
+    return `https://www.linkedin.com/oauth/v2/authorization?${params.toString()}`
+  }
+
+  async exchangeLinkedInCode(code: string): Promise<{
+    accessToken: string
+    personUrn: string
+    name: string
+  }> {
+    const linkedInClientId = process.env['LINKEDIN_CLIENT_ID']
+    const linkedInClientSecret = process.env['LINKEDIN_CLIENT_SECRET']
+    const redirectUri = process.env['LINKEDIN_OAUTH_REDIRECT_URI']
+
+    if (!linkedInClientId || !linkedInClientSecret || !redirectUri) {
+      throw new Error('LINKEDIN_CLIENT_ID, LINKEDIN_CLIENT_SECRET, and LINKEDIN_OAUTH_REDIRECT_URI must be configured')
+    }
+
+    // Exchange code for access token
+    const tokenResponse = await axios.post(
+      'https://www.linkedin.com/oauth/v2/accessToken',
+      new URLSearchParams({
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: redirectUri,
+        client_id: linkedInClientId,
+        client_secret: linkedInClientSecret
+      }).toString(),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+    )
+
+    const accessToken: string = tokenResponse.data.access_token
+    logger.info('LinkedIn access token obtained')
+
+    // Get profile info via OpenID Connect userinfo endpoint
+    const profileResponse = await axios.get('https://api.linkedin.com/v2/userinfo', {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    })
+
+    const profile = profileResponse.data
+    const personUrn: string = profile.sub || ''
+    const name: string = profile.name || `${profile.given_name || ''} ${profile.family_name || ''}`.trim()
+
+    logger.info('LinkedIn profile retrieved', { personUrn, name })
+
+    return { accessToken, personUrn, name }
+  }
 }
 
 export const socialService = new SocialService()

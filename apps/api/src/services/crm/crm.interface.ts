@@ -37,6 +37,7 @@ export interface ICRMProvider {
   createContact(data: ContactData): Promise<{ id: string }>
   updateContact(contactId: string, data: Partial<ContactData>): Promise<void>
   getContact(contactId: string): Promise<CRMContact>
+  getContacts(query?: string, limit?: number): Promise<{ contacts: CRMContact[], total: number }>
   createDeal(data: DealData): Promise<{ id: string }>
   moveDealStage(dealId: string, stageId: string): Promise<void>
   bookAppointment(data: AppointmentData): Promise<{ id: string }>

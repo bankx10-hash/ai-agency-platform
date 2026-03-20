@@ -89,6 +89,14 @@ export class GHLProvider implements ICRMProvider {
     logger.info('GHL contact updated', { contactId })
   }
 
+  async getContacts(_query?: string, limit = 50): Promise<{ contacts: CRMContact[], total: number }> {
+    const response = await this.client.get(`/contacts?locationId=${this.locationId}&limit=${limit}`)
+    const contacts: CRMContact[] = (response.data.contacts || []).map((c: Record<string, string>) => ({
+      id: c['id'], firstName: c['firstName'], lastName: c['lastName'], email: c['email'], phone: c['phone']
+    }))
+    return { contacts, total: response.data.meta?.total ?? contacts.length }
+  }
+
   async getContact(contactId: string): Promise<CRMContact> {
     const response = await this.client.get(`/contacts/${contactId}`)
     const c = response.data.contact
