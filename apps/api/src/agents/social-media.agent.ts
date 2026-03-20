@@ -4,6 +4,8 @@ import { n8nService } from '../services/n8n.service'
 import { socialService } from '../services/social.service'
 import { imageService } from '../services/image.service'
 import { logger } from '../utils/logger'
+import { prisma } from '../lib/prisma'
+import { decryptJSON } from '../utils/encrypt'
 
 export type SupportedPlatform = 'instagram' | 'facebook' | 'tiktok' | 'linkedin' | 'twitter'
 
@@ -264,6 +266,30 @@ Each week is an array of post objects. Plan ${config.posting_frequency} per day.
         `Posting frequency: ${config.posting_frequency || 'daily'}.`
       ].filter(Boolean).join(' ')
 
+      // Read client's OAuth credentials from DB
+      let metaPageId = config.meta_page_id || ''
+      let metaPageAccessToken = config.meta_access_token || ''
+      let linkedinAccessToken = ''
+      let linkedinPersonUrn = ''
+
+      try {
+        const metaCred = await prisma.clientCredential.findUnique({ where: { id: `meta-${clientId}` } })
+        if (metaCred) {
+          const meta = decryptJSON<{ pageAccessToken: string; pageId: string }>(metaCred.credentials)
+          metaPageId = meta.pageId || metaPageId
+          metaPageAccessToken = meta.pageAccessToken || metaPageAccessToken
+        }
+
+        const linkedinCred = await prisma.clientCredential.findUnique({ where: { id: `linkedin-social-${clientId}` } })
+        if (linkedinCred) {
+          const linkedin = decryptJSON<{ accessToken: string; personUrn: string }>(linkedinCred.credentials)
+          linkedinAccessToken = linkedin.accessToken || ''
+          linkedinPersonUrn = linkedin.personUrn || ''
+        }
+      } catch (credError) {
+        logger.warn('Could not read social OAuth credentials from DB', { clientId, error: String(credError) })
+      }
+
       workflowResult = await n8nService.deployWorkflow('social-media', {
         clientId,
         locationId: config.locationId,
@@ -271,9 +297,11 @@ Each week is an array of post objects. Plan ${config.posting_frequency} per day.
         webhookUrl: `${process.env['API_BASE_URL']}/webhooks/social/${clientId}`,
         businessName: config.businessName,
         apiKey: config.api_key as string || '',
-        bufferToken: config.buffer_token || '',
-        bufferProfileId: (config as unknown as Record<string, string>).buffer_profile_id || ''
-      })
+        metaPageId,
+        metaPageAccessToken,
+        linkedinAccessToken,
+        linkedinPersonUrn
+      } as never)
     } catch (error) {
       logger.warn('N8N workflow deployment failed, agent will run via direct API calls', { clientId, error: String(error) })
     }
