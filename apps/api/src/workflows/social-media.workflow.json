@@ -6,7 +6,7 @@
       "id": "schedule-trigger",
       "name": "Post Schedule",
       "type": "n8n-nodes-base.scheduleTrigger",
-      "typeVersion": 1.1,
+      "typeVersion": 1,
       "position": [
         250,
         300
@@ -295,7 +295,7 @@
       "main": [
         [
           {
-            "node": "Claude - Generate Post Content",
+            "node": "Seed Data",
             "type": "main",
             "index": 0
           }
