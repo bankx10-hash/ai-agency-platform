@@ -35,7 +35,7 @@
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "{\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":2048,\"system\":\"You are a social media content expert for {{BUSINESS_NAME}}. {{AGENT_PROMPT}} Create engaging, platform-appropriate social media posts. Return ONLY a valid JSON object where keys are platform names (facebook, linkedin) and values are the post text strings. No markdown fences, no explanations, just the JSON object.\",\"messages\":[{\"role\":\"user\",\"content\":\"Create one social media post for each of these platforms: facebook, linkedin. The posts should be relevant to our business and audience. Return ONLY valid JSON.\"}]}"
+        "body": "{\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":2048,\"system\":\"You are a social media content expert for {{BUSINESS_NAME}}. {{AGENT_PROMPT}} Create engaging, platform-appropriate social media posts. Return ONLY a valid JSON object with keys: facebook (post text), instagram (caption), linkedin (post text), image_prompt (a detailed prompt for an AI image generator that suits all three platforms). No markdown fences, no explanations, just the JSON object.\",\"messages\":[{\"role\":\"user\",\"content\":\"Create one social media post for each platform: facebook, instagram, linkedin. Also include an image_prompt. Return ONLY valid JSON.\"}]}"
       }
     },
     {
@@ -45,7 +45,52 @@
       "typeVersion": 2,
       "position": [750, 300],
       "parameters": {
-        "jsCode": "const raw = $input.first().json.content?.[0]?.text || '{}';\nconst cleaned = raw.replace(/```json\\n?|\\n?```/g, '').trim();\nlet content;\ntry {\n  content = JSON.parse(cleaned);\n} catch (e) {\n  content = { facebook: raw, linkedin: raw };\n}\nconst platforms = ['facebook', 'linkedin'];\nreturn platforms\n  .filter(p => content[p])\n  .map(platform => ({\n    json: { platform, content: String(content[platform]) }\n  }));"
+        "jsCode": "const raw = $input.first().json.content?.[0]?.text || '{}';\nconst cleaned = raw.replace(/```json\\n?|\\n?```/g, '').trim();\nlet parsed;\ntry {\n  parsed = JSON.parse(cleaned);\n} catch (e) {\n  parsed = { facebook: raw, instagram: raw, linkedin: raw, image_prompt: 'A professional business image' };\n}\nconst imageSizes = { facebook: 'landscape_4_3', instagram: 'square_hd', linkedin: 'landscape_4_3' };\nconst platforms = ['facebook', 'instagram', 'linkedin'];\nreturn platforms\n  .filter(p => parsed[p])\n  .map(platform => ({\n    json: {\n      platform,\n      content: String(parsed[platform]),\n      image_prompt: String(parsed.image_prompt || 'A professional business image'),\n      image_size: imageSizes[platform]\n    }\n  }));"
+      }
+    },
+    {
+      "id": "generate-image",
+      "name": "Generate Image",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1000, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://fal.run/fal-ai/flux/schnell",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Key {{FAL_API_KEY}}" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "prompt", "value": "={{ $json.image_prompt }}" },
+            { "name": "image_size", "value": "={{ $json.image_size }}" },
+            { "name": "num_images", "value": "1" },
+            { "name": "enable_safety_checker", "value": "true" }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "fullResponse": false
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "merge-image-data",
+      "name": "Merge Image Data",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1250, 300],
+      "parameters": {
+        "jsCode": "const imageUrl = $input.first().json.images?.[0]?.url || '';\nconst src = $('Parse Content').item.json;\nreturn [{\n  json: {\n    platform: src.platform,\n    content: src.content,\n    imageUrl\n  }\n}];"
       }
     },
     {
@@ -53,7 +98,7 @@
       "name": "Route by Platform",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3,
-      "position": [1000, 300],
+      "position": [1500, 300],
       "parameters": {
         "mode": "rules",
         "rules": {
@@ -66,6 +111,21 @@
                   {
                     "leftValue": "={{ $json.platform }}",
                     "rightValue": "facebook",
+                    "operator": { "type": "string", "operation": "equals" }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true
+            },
+            {
+              "outputKey": "instagram",
+              "conditions": {
+                "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.platform }}",
+                    "rightValue": "instagram",
                     "operator": { "type": "string", "operation": "equals" }
                   }
                 ],
@@ -98,15 +158,56 @@
       "name": "Post to Facebook",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1250, 150],
+      "position": [1750, 100],
       "parameters": {
         "method": "POST",
-        "url": "https://graph.facebook.com/v18.0/{{META_PAGE_ID}}/feed",
+        "url": "https://graph.facebook.com/v18.0/{{META_PAGE_ID}}/photos",
         "sendBody": true,
         "specifyBody": "keypair",
         "bodyParameters": {
           "parameters": [
-            { "name": "message", "value": "={{ $json.content }}" },
+            { "name": "url", "value": "={{ $json.imageUrl }}" },
+            { "name": "caption", "value": "={{ $json.content }}" },
+            { "name": "access_token", "value": "{{META_PAGE_ACCESS_TOKEN}}" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "instagram-create-container",
+      "name": "Instagram - Create Container",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1750, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v18.0/{{INSTAGRAM_USER_ID}}/media",
+        "sendBody": true,
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "image_url", "value": "={{ $json.imageUrl }}" },
+            { "name": "caption", "value": "={{ $json.content }}" },
+            { "name": "media_type", "value": "IMAGE" },
+            { "name": "access_token", "value": "{{META_PAGE_ACCESS_TOKEN}}" }
+          ]
+        }
+      }
+    },
+    {
+      "id": "instagram-publish",
+      "name": "Instagram - Publish Post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [2000, 300],
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v18.0/{{INSTAGRAM_USER_ID}}/media_publish",
+        "sendBody": true,
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            { "name": "creation_id", "value": "={{ $json.id }}" },
             { "name": "access_token", "value": "{{META_PAGE_ACCESS_TOKEN}}" }
           ]
         }
@@ -117,7 +218,7 @@
       "name": "Build LinkedIn Payload",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1250, 450],
+      "position": [1750, 500],
       "parameters": {
         "jsCode": "const content = $input.first().json.content;\nconst body = JSON.stringify({\n  author: 'urn:li:person:{{LINKEDIN_PERSON_URN}}',\n  lifecycleState: 'PUBLISHED',\n  specificContent: {\n    'com.linkedin.ugc.ShareContent': {\n      shareCommentary: { text: content },\n      shareMediaCategory: 'NONE'\n    }\n  },\n  visibility: {\n    'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC'\n  }\n});\nreturn [{ json: { content, body } }];"
       }
@@ -127,7 +228,7 @@
       "name": "Post to LinkedIn",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1500, 450],
+      "position": [2000, 500],
       "parameters": {
         "method": "POST",
         "url": "https://api.linkedin.com/v2/ugcPosts",
@@ -150,7 +251,7 @@
       "name": "Log Post to CRM",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4,
-      "position": [1750, 300],
+      "position": [2250, 300],
       "parameters": {
         "method": "POST",
         "url": "{{API_URL}}/clients/{{CLIENT_ID}}/crm/contacts",
@@ -166,8 +267,8 @@
         "bodyParameters": {
           "parameters": [
             { "name": "type", "value": "Note" },
-            { "name": "platform", "value": "={{ $json.platform }}" },
-            { "name": "body", "value": "={{ 'Social post published to ' + $json.platform + ': ' + $json.content }}" }
+            { "name": "platform", "value": "={{ $('Merge Image Data').item.json.platform }}" },
+            { "name": "body", "value": "={{ 'Social post published to ' + $('Merge Image Data').item.json.platform + ': ' + $('Merge Image Data').item.json.content }}" }
           ]
         }
       }
@@ -181,15 +282,28 @@
       "main": [[{ "node": "Parse Content", "type": "main", "index": 0 }]]
     },
     "Parse Content": {
+      "main": [[{ "node": "Generate Image", "type": "main", "index": 0 }]]
+    },
+    "Generate Image": {
+      "main": [[{ "node": "Merge Image Data", "type": "main", "index": 0 }]]
+    },
+    "Merge Image Data": {
       "main": [[{ "node": "Route by Platform", "type": "main", "index": 0 }]]
     },
     "Route by Platform": {
       "main": [
         [{ "node": "Post to Facebook", "type": "main", "index": 0 }],
+        [{ "node": "Instagram - Create Container", "type": "main", "index": 0 }],
         [{ "node": "Build LinkedIn Payload", "type": "main", "index": 0 }]
       ]
     },
     "Post to Facebook": {
+      "main": [[{ "node": "Log Post to CRM", "type": "main", "index": 0 }]]
+    },
+    "Instagram - Create Container": {
+      "main": [[{ "node": "Instagram - Publish Post", "type": "main", "index": 0 }]]
+    },
+    "Instagram - Publish Post": {
       "main": [[{ "node": "Log Post to CRM", "type": "main", "index": 0 }]]
     },
     "Build LinkedIn Payload": {

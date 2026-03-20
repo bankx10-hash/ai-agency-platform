@@ -269,15 +269,17 @@ Each week is an array of post objects. Plan ${config.posting_frequency} per day.
       // Read client's OAuth credentials from DB
       let metaPageId = config.meta_page_id || ''
       let metaPageAccessToken = config.meta_access_token || ''
+      let instagramUserId = config.instagram_user_id || ''
       let linkedinAccessToken = ''
       let linkedinPersonUrn = ''
 
       try {
         const metaCred = await prisma.clientCredential.findUnique({ where: { id: `meta-${clientId}` } })
         if (metaCred) {
-          const meta = decryptJSON<{ pageAccessToken: string; pageId: string }>(metaCred.credentials)
+          const meta = decryptJSON<{ pageAccessToken: string; pageId: string; instagramUserId?: string }>(metaCred.credentials)
           metaPageId = meta.pageId || metaPageId
           metaPageAccessToken = meta.pageAccessToken || metaPageAccessToken
+          instagramUserId = meta.instagramUserId || instagramUserId
         }
 
         const linkedinCred = await prisma.clientCredential.findUnique({ where: { id: `linkedin-social-${clientId}` } })
@@ -299,6 +301,7 @@ Each week is an array of post objects. Plan ${config.posting_frequency} per day.
         apiKey: config.api_key as string || '',
         metaPageId,
         metaPageAccessToken,
+        instagramUserId,
         linkedinAccessToken,
         linkedinPersonUrn
       } as never)
