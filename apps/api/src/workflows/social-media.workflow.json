@@ -23,22 +23,6 @@
       }
     },
     {
-      "id": "test-trigger-social-media",
-      "name": "Test Trigger",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
-      "position": [
-        250,
-        150
-      ],
-      "parameters": {
-        "httpMethod": "GET",
-        "path": "test-social-media-{{CLIENT_ID}}",
-        "responseMode": "onReceived",
-        "responseData": "allEntries"
-      }
-    },
-    {
       "id": "seed-data-social-media",
       "name": "Seed Data",
       "type": "n8n-nodes-base.set",
@@ -226,17 +210,6 @@
   ],
   "connections": {
     "Post Schedule": {
-      "main": [
-        [
-          {
-            "node": "Seed Data",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Test Trigger": {
       "main": [
         [
           {
