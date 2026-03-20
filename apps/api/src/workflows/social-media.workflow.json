@@ -23,132 +23,19 @@
       }
     },
     {
-      "id": "claude-generate-content",
-      "name": "Claude - Generate Post Content",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
-      "position": [
-        500,
-        300
-      ],
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.anthropic.com/v1/messages",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "x-api-key",
-              "value": "{{ANTHROPIC_API_KEY}}"
-            },
-            {
-              "name": "anthropic-version",
-              "value": "2023-06-01"
-            },
-            {
-              "name": "content-type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "contentType": "raw",
-        "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:2048,system:'You are a helpful AI assistant for Test Business AU. Always respond with valid JSON only, no other text.',messages:[{role:'user',content:'Create social media posts for these platforms: instagram, facebook, linkedin. Return ONLY a valid JSON object where keys are platform names and values are the post text. No markdown, no explanations, just JSON.'}]}) }}"
-      }
-    },
-    {
-      "id": "parse-content",
-      "name": "Parse Content",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        750,
-        300
-      ],
-      "parameters": {
-        "jsCode": "const content = JSON.parse($input.first().json.content[0].text);\nreturn Object.entries(content).map(([platform, post]) => ({ json: { platform, content: post, scheduledTime: new Date(Date.now() + 3600000).toISOString() } }));"
-      }
-    },
-    {
-      "id": "schedule-buffer",
-      "name": "Schedule via Buffer",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
-      "position": [
-        1000,
-        300
-      ],
-      "parameters": {
-        "method": "POST",
-        "url": "https://api.bufferapp.com/1/updates/create.json",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer {{BUFFER_TOKEN}}"
-            }
-          ]
-        },
-        "sendBody": true,
-        "bodyContentType": "form-urlencoded",
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "text",
-              "value": "={{$json.content}}"
-            },
-            {
-              "name": "scheduled_at",
-              "value": "={{$json.scheduledTime}}"
-            }
-          ]
-        }
-      }
-    },
-    {
-      "id": "log-to-crm",
-      "name": "Log Post to CRM",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
-      "position": [
-        1250,
-        300
-      ],
-      "parameters": {
-        "method": "POST",
-        "url": "{{API_URL}}/clients/{{CLIENT_ID}}/crm/email",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "Authorization",
-              "value": "Bearer {{API_KEY}}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            }
-          ]
-        },
-        "sendBody": true,
-        "specifyBody": "string",
-        "body": "={\"locationId\":\"{{LOCATION_ID}}\",\"type\":\"Note\",\"body\":\"Social post scheduled for \" + $json.platform + \": \" + $json.content}"
-      }
-    },
-    {
-      "id": "content-brief-webhook",
-      "name": "Content Brief Webhook",
+      "id": "test-trigger-social-media",
+      "name": "Test Trigger",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
         250,
-        500
+        150
       ],
       "parameters": {
-        "path": "social-brief-{{CLIENT_ID}}",
-        "responseMode": "onReceived"
+        "httpMethod": "GET",
+        "path": "test-social-media-{{CLIENT_ID}}",
+        "responseMode": "onReceived",
+        "responseData": "allEntries"
       }
     },
     {
@@ -189,18 +76,151 @@
       }
     },
     {
-      "id": "test-trigger-social-media",
-      "name": "Test Trigger",
+      "id": "claude-generate-content",
+      "name": "Claude - Generate Post Content",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        500,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-api-key",
+              "value": "{{ANTHROPIC_API_KEY}}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "rawContentType": "application/json",
+        "body": "{\"model\":\"claude-sonnet-4-20250514\",\"max_tokens\":2048,\"system\":\"You are a social media content expert for {{BUSINESS_NAME}}. {{AGENT_PROMPT}} Create engaging, platform-appropriate social media posts. Return ONLY a valid JSON object where keys are platform names (instagram, facebook, linkedin) and values are the post text strings. No markdown fences, no explanations, just the JSON object.\",\"messages\":[{\"role\":\"user\",\"content\":\"Create one social media post for each of these platforms: instagram, facebook, linkedin. The posts should be relevant to our business and audience. Return ONLY valid JSON.\"}]}"
+      }
+    },
+    {
+      "id": "parse-content",
+      "name": "Parse Content",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        750,
+        300
+      ],
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.content?.[0]?.text || '{}';\nconst cleaned = raw.replace(/```json\\n?|\\n?```/g, '').trim();\nlet content;\ntry {\n  content = JSON.parse(cleaned);\n} catch (e) {\n  content = { instagram: raw, facebook: raw, linkedin: raw };\n}\nconst scheduledAt = new Date(Date.now() + 3600000).toISOString();\nreturn Object.entries(content).map(([platform, post]) => ({\n  json: { platform, content: String(post), scheduledTime: scheduledAt }\n}));"
+      }
+    },
+    {
+      "id": "schedule-buffer",
+      "name": "Schedule via Buffer",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1000,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.bufferapp.com/1/updates/create.json?access_token={{BUFFER_TOKEN}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/x-www-form-urlencoded"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyContentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "text",
+              "value": "={{ $json.content }}"
+            },
+            {
+              "name": "scheduled_at",
+              "value": "={{ $json.scheduledTime }}"
+            },
+            {
+              "name": "profile_ids[]",
+              "value": "={{ $json.platform === 'instagram' ? '{{BUFFER_INSTAGRAM_PROFILE_ID}}' : $json.platform === 'linkedin' ? '{{BUFFER_LINKEDIN_PROFILE_ID}}' : '{{BUFFER_FACEBOOK_PROFILE_ID}}' }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "log-to-crm",
+      "name": "Log Post to CRM",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [
+        1250,
+        300
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "{{API_URL}}/clients/{{CLIENT_ID}}/crm/contacts",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "type",
+              "value": "Note"
+            },
+            {
+              "name": "platform",
+              "value": "={{ $json.platform }}"
+            },
+            {
+              "name": "body",
+              "value": "={{ 'Social post scheduled for ' + $json.platform + ': ' + $json.content }}"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "content-brief-webhook",
+      "name": "Content Brief Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
         250,
-        150
+        500
       ],
       "parameters": {
-        "path": "test-social-media-{{CLIENT_ID}}",
-        "responseMode": "onReceived",
-        "responseData": "allEntries"
+        "path": "social-brief-{{CLIENT_ID}}",
+        "responseMode": "onReceived"
       }
     }
   ],
@@ -210,6 +230,28 @@
         [
           {
             "node": "Seed Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Trigger": {
+      "main": [
+        [
+          {
+            "node": "Seed Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Seed Data": {
+      "main": [
+        [
+          {
+            "node": "Claude - Generate Post Content",
             "type": "main",
             "index": 0
           }
@@ -254,28 +296,6 @@
         [
           {
             "node": "Claude - Generate Post Content",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Seed Data": {
-      "main": [
-        [
-          {
-            "node": "Claude - Generate Post Content",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Test Trigger": {
-      "main": [
-        [
-          {
-            "node": "Seed Data",
             "type": "main",
             "index": 0
           }
