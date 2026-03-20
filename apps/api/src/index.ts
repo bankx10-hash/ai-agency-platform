@@ -152,6 +152,15 @@ app.get('/onboarding/oauth/gmail/callback', async (req, res) => {
   }
 })
 
+// Meta data deletion callback (required by Facebook Login)
+app.post('/meta/data-deletion', (req, res) => {
+  logger.info('Meta data deletion request received')
+  res.json({
+    url: `${process.env['PORTAL_URL'] || 'http://localhost:3000'}/data-deletion`,
+    confirmation_code: `del_${Date.now()}`
+  })
+})
+
 app.get('/onboarding/oauth/meta/callback', async (req, res) => {
   const { code, state: clientId, error: oauthError } = req.query as Record<string, string>
   const portalUrl = process.env['PORTAL_URL'] || 'http://localhost:3000'
