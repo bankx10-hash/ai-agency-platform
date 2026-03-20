@@ -144,6 +144,24 @@ app.get('/onboarding/oauth/gmail/callback', async (req, res) => {
       create: { clientId, step: 1, status: 'IN_PROGRESS', data: { emailConnected: true, gmailEmail: tokens.email } }
     })
 
+    // Auto-create Google Sheet for social media post tracking
+    try {
+      const client = await prisma.client.findUnique({ where: { id: clientId } })
+      const spreadsheetId = await emailService.createSpreadsheet(
+        tokens.accessToken,
+        tokens.refreshToken,
+        client?.businessName || 'Business'
+      )
+      await prisma.clientCredential.upsert({
+        where: { id: `google-sheets-${clientId}` },
+        update: { credentials: encryptJSON({ spreadsheetId }) },
+        create: { id: `google-sheets-${clientId}`, clientId, service: 'google-sheets', credentials: encryptJSON({ spreadsheetId }) }
+      })
+      logger.info('Google Sheet created for social media tracking', { clientId, spreadsheetId })
+    } catch (sheetsError) {
+      logger.warn('Could not create Google Sheet — Sheets scope may not be granted yet', { clientId, error: String(sheetsError) })
+    }
+
     logger.info('Gmail connected via OAuth callback', { clientId, gmailEmail: tokens.email })
     res.redirect(`${portalUrl}/onboarding/connect?gmail=connected`)
   } catch (error) {

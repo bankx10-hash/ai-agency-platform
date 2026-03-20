@@ -254,7 +254,7 @@
       "position": [2250, 300],
       "parameters": {
         "method": "POST",
-        "url": "{{API_URL}}/clients/{{CLIENT_ID}}/crm/contacts",
+        "url": "{{API_URL}}/clients/{{CLIENT_ID}}/social/log-post",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -266,9 +266,11 @@
         "specifyBody": "keypair",
         "bodyParameters": {
           "parameters": [
-            { "name": "type", "value": "Note" },
             { "name": "platform", "value": "={{ $('Merge Image Data').item.json.platform }}" },
-            { "name": "body", "value": "={{ 'Social post published to ' + $('Merge Image Data').item.json.platform + ': ' + $('Merge Image Data').item.json.content }}" }
+            { "name": "content", "value": "={{ $('Merge Image Data').item.json.content }}" },
+            { "name": "imageUrl", "value": "={{ $('Merge Image Data').item.json.imageUrl }}" },
+            { "name": "imagePrompt", "value": "={{ $('Parse Content').item.json.image_prompt }}" },
+            { "name": "status", "value": "published" }
           ]
         }
       }

@@ -166,11 +166,58 @@ export class EmailService {
       scope: [
         'https://www.googleapis.com/auth/gmail.send',
         'https://www.googleapis.com/auth/gmail.readonly',
-        'https://www.googleapis.com/auth/userinfo.email'
+        'https://www.googleapis.com/auth/userinfo.email',
+        'https://www.googleapis.com/auth/spreadsheets',
+        'https://www.googleapis.com/auth/drive.file'
       ],
       prompt: 'consent',
       state: clientId
     })
+  }
+
+  async createSpreadsheet(accessToken: string, refreshToken: string, businessName: string): Promise<string> {
+    const oauth2Client = this.getOAuth2Client()
+    oauth2Client.setCredentials({ access_token: accessToken, refresh_token: refreshToken })
+    const { token } = await oauth2Client.getAccessToken()
+
+    const createRes = await axios.post(
+      'https://sheets.googleapis.com/v4/spreadsheets',
+      {
+        properties: { title: `${businessName} - Social Media Posts` },
+        sheets: [{ properties: { title: 'Posts' } }]
+      },
+      { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+    )
+
+    const spreadsheetId: string = createRes.data.spreadsheetId
+
+    await axios.put(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Posts!A1:F1?valueInputOption=RAW`,
+      { values: [['Date', 'Platform', 'Content', 'Image URL', 'Image Prompt', 'Status']] },
+      { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+    )
+
+    logger.info('Google Sheet created', { spreadsheetId, businessName })
+    return spreadsheetId
+  }
+
+  async appendSheetRow(
+    accessToken: string,
+    refreshToken: string,
+    spreadsheetId: string,
+    row: [string, string, string, string, string, string]
+  ): Promise<void> {
+    const oauth2Client = this.getOAuth2Client()
+    oauth2Client.setCredentials({ access_token: accessToken, refresh_token: refreshToken })
+    const { token } = await oauth2Client.getAccessToken()
+
+    await axios.post(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/Posts!A:F:append?valueInputOption=USER_ENTERED`,
+      { values: [row] },
+      { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
+    )
+
+    logger.info('Row appended to Google Sheet', { spreadsheetId })
   }
 
   async exchangeCodeForTokens(code: string): Promise<{
